@@ -1,0 +1,46 @@
+# CMake and build artifacts
+build/
+build_*/
+Frontend/build/
+Frontend/build-local/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Generated objects and executables
+*.o
+*.o.d
+*.obj
+*.obj.d
+*.a
+*.so
+*.exe
+*.out
+myschedule
+myschedule.exe
+ScheduleManagerGUI
+Frontend/ScheduleManagerGUI
+
+# Runtime data
+data/users.txt
+data/tasks_*.txt
+data/*.tmp
+!data/.gitkeep
+
+# Logs
+log/
+logs/
+**/log/
+*.log
+
+# Secret keys and local tokens
+*.pem
+token
+
+# IDE local settings
+.vscode/
+**/.vscode/
+
+# Accidental nested project copy
+schedule_manager-main/
