@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(schedule_core
     src/core/task.cpp
+    src/core/task_manager.cpp
+    src/core/time_utils.cpp
     src/core/storage.cpp
     src/core/user.cpp
 )
