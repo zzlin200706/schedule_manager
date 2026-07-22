@@ -40,4 +40,11 @@ if(BUILD_TESTING)
     target_link_libraries(UserManagerTest PRIVATE schedule_core)
     target_compile_options(UserManagerTest PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME user_manager COMMAND UserManagerTest)
+
+    add_executable(TaskManagerTest
+        tests/test_task_manager.cpp
+    )
+    target_link_libraries(TaskManagerTest PRIVATE schedule_core)
+    target_compile_options(TaskManagerTest PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME task_manager COMMAND TaskManagerTest)
 endif()
