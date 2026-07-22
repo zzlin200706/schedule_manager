@@ -9,6 +9,6 @@ void CLI::printHelp(std::ostream& output) {
         << "Commands:\n"
         << "  help        Show this help text.\n\n"
         << "Development status:\n"
-        << "  Day 1 provides the project skeleton and help command.\n"
-        << "  Accounts, task operations, storage, reminders, and Qt are not available yet.\n";
+        << "  The project skeleton, help command, and core account storage are available.\n"
+        << "  Interactive login, task operations, reminders, and Qt are not available yet.\n";
 }
