@@ -46,19 +46,14 @@ void Reminder::stop() {
 void Reminder::run() {
     while (running_) {
         std::vector<Task> reminders;
-        std::string message;
-        if (taskManager_.collectDueReminders(reminders, message)) {
-            for (const auto& task : reminders) {
-                if (onReminder_) {
-                    onReminder_(task);
-                }
 
-		playReminderSound();
+        reminders = taskManager_.getDueReminders();
+
+        for (const auto& task : reminders) {
+            if (onReminder_) {
+                onReminder_(task);
             }
-        } else if (!message.empty()) {
-            if (onError_) {
-                onError_(message);
-            }
+            playReminderSound();
         }
 
         for (int second = 0; second < 10 && running_; ++second) {
