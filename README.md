@@ -1,11 +1,11 @@
 # MySchedule 日程管理器
 
-`MySchedule` 是一个面向 Linux、使用 C++17 和 CMake 渐进开发的本地日程管理软件。当前分支处于 Step 2，提供项目骨架、最小命令行帮助和核心账户存储。
+`MySchedule` 是一个面向 Linux、使用 C++17 和 CMake 渐进开发的本地日程管理软件。当前分支处于 Step 3，已提供核心账户存储和任务管理能力。
 
 ## 已实现
 
 - 建立 `src/core/` 与 `src/cli/` 目录结构；
-- 提供包含 `id` 和 `name` 的最小 `Task` 数据模型；
+- 提供任务 ID、名称、开始时间、优先级、分类、提醒时间和提醒状态；
 - 提供 `myschedule --help` 与 `myschedule help`；
 - 对无参数和未知命令返回错误；
 - 使用 CMake 构建，并通过 CTest 验证两种帮助入口；
@@ -13,8 +13,13 @@
 - 支持用户名注册、正确密码登录和错误密码拒绝；
 - 使用每用户独立 salt 与 salted FNV-1a 保存密码，不保存明文；
 - 将账户保存到 `data/users.txt`，并为不同用户生成独立任务文件路径。
+- 严格校验日期时间、优先级、分类和提醒时间；
+- 支持 Core 层任务添加、删除、全字段修改、日查询、月查询和全部查询；
+- 拒绝相同开始时间，并按真实开始时间排序查询结果；
+- 为优先级、分类和提醒时间提供默认值；
+- 使用每用户独立任务文件保存当前任务列表。
 
-交互式登录、任务增删改查、任务持久化、后台提醒和 Qt5 图形界面均尚未实现。后续安排见 [开发路线图](docs/roadmap.md)。
+CLI 任务命令、交互式 `run`、后台提醒和 Qt5 图形界面尚未实现。当前任务文件仍使用直接覆写，且 `next_id` 尚未独立持久化；原子替换、保存失败回滚、损坏文件全面拒绝和删除后永不复用 ID 将在 Step 5 完成。后续安排见 [开发路线图](docs/roadmap.md)。
 
 ## 项目结构
 
@@ -34,8 +39,16 @@ schedule_manager_new/
     │   ├── cli.h
     │   └── main.cpp
     └── core/
+        ├── storage.cpp
+        ├── storage.h
         ├── task.cpp
-        └── task.h
+        ├── task.h
+        ├── task_manager.cpp
+        ├── task_manager.h
+        ├── time_utils.cpp
+        ├── time_utils.h
+        ├── user.cpp
+        └── user.h
 ```
 
 ## 构建与运行
@@ -55,4 +68,4 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-当前 CTest 覆盖两个帮助入口以及账户注册、登录、salt 隔离和本地文件验证；测试矩阵会随功能逐步扩展。
+当前 CTest 覆盖两个帮助入口，账户注册、登录、salt 隔离和本地文件验证，以及任务字段校验、默认值、增删改查、筛选、排序和基础持久化；测试矩阵会随功能逐步扩展。
