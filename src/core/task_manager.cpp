@@ -7,7 +7,7 @@
 #include <limits>
 #include <unordered_set>
 #include <utility>
-
+#include<ctime>
 TaskManager::TaskManager(std::string username) : username_(std::move(username)) {}
 
 bool TaskManager::load(std::string& message) {
@@ -177,6 +177,28 @@ std::vector<Task> TaskManager::getTasksByMonth(const std::string& month) const {
         }
     }
     return filtered;
+}
+
+std::vector<Task> TaskManager::getDueReminders() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    std::vector<Task> result;
+
+    std::time_t now = std::time(nullptr);
+
+    for (const auto& task : tasks_) {
+        if (!task.reminded && !task.remindTime.empty()) {
+            auto remind = parseDateTime(task.remindTime);
+
+            if (remind.has_value() &&
+                std::difftime(std::mktime(&remind.value()),
+                              now) <= 0) {
+                result.push_back(task);
+            }
+        }
+    }
+
+    return result;
 }
 
 int TaskManager::generateNextId() const {
