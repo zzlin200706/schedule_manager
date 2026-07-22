@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(schedule_core
     src/core/task.cpp
+    src/core/storage.cpp
+    src/core/user.cpp
 )
 
 target_include_directories(schedule_core PUBLIC src/core)
@@ -29,4 +31,11 @@ if(BUILD_TESTING)
 
     add_test(NAME cli_help_command COMMAND myschedule help)
     set_tests_properties(cli_help_command PROPERTIES PASS_REGULAR_EXPRESSION "Commands:")
+
+    add_executable(UserManagerTest
+        tests/test_user_manager.cpp
+    )
+    target_link_libraries(UserManagerTest PRIVATE schedule_core)
+    target_compile_options(UserManagerTest PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME user_manager COMMAND UserManagerTest)
 endif()
