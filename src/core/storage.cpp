@@ -12,6 +12,9 @@
 namespace fs = std::filesystem;
 
 namespace {
+constexpr const char* kTaskHeader =
+    "id|name|start_time|priority|category|remind_time|reminded";
+
 bool hasProjectMarkers(const fs::path& candidate) {
     std::error_code error;
     return fs::exists(candidate / "data", error) &&
@@ -141,6 +144,62 @@ bool Storage::saveUsers(const std::map<std::string, UserRecord>& users, std::str
     }
     if (!output.good()) {
         errorMessage = "Error: failed while writing users.txt.";
+        return false;
+    }
+    return true;
+}
+
+std::vector<Task> Storage::loadTasks(const std::string& username, std::string& errorMessage) {
+    std::vector<Task> tasks;
+    if (!ensureDataDir(errorMessage)) {
+        return tasks;
+    }
+
+    std::ifstream input(tasksPath(username));
+    if (!input.is_open()) {
+        return tasks;
+    }
+
+    std::string line;
+    while (std::getline(input, line)) {
+        if (line.empty() || line == kTaskHeader) {
+            continue;
+        }
+
+        std::string parseError;
+        const auto parsed = deserializeTask(line, parseError);
+        if (!parsed.has_value()) {
+            errorMessage = parseError;
+            return {};
+        }
+        tasks.push_back(*parsed);
+    }
+    if (input.bad()) {
+        errorMessage = "Error: failed while reading task storage file.";
+        return {};
+    }
+    return tasks;
+}
+
+bool Storage::saveTasks(const std::string& username,
+                        const std::vector<Task>& tasks,
+                        std::string& errorMessage) {
+    if (!ensureDataDir(errorMessage)) {
+        return false;
+    }
+
+    std::ofstream output(tasksPath(username), std::ios::trunc);
+    if (!output.is_open()) {
+        errorMessage = "Error: failed to open task storage file for writing.";
+        return false;
+    }
+
+    output << kTaskHeader << '\n';
+    for (const auto& task : tasks) {
+        output << serializeTask(task) << '\n';
+    }
+    if (!output.good()) {
+        errorMessage = "Error: failed while writing task storage file.";
         return false;
     }
     return true;

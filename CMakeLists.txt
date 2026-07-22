@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(schedule_core
     src/core/task.cpp
+    src/core/task_manager.cpp
+    src/core/time_utils.cpp
     src/core/storage.cpp
     src/core/user.cpp
 )
@@ -38,4 +40,11 @@ if(BUILD_TESTING)
     target_link_libraries(UserManagerTest PRIVATE schedule_core)
     target_compile_options(UserManagerTest PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME user_manager COMMAND UserManagerTest)
+
+    add_executable(TaskManagerTest
+        tests/test_task_manager.cpp
+    )
+    target_link_libraries(TaskManagerTest PRIVATE schedule_core)
+    target_compile_options(TaskManagerTest PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME task_manager COMMAND TaskManagerTest)
 endif()
