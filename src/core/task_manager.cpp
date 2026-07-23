@@ -7,13 +7,12 @@
 #include <ctime>
 #include <limits>
 #include <unordered_set>
-#include <utility>
 
 TaskManager::TaskManager(std::string username) : username_(std::move(username)) {}
 
 bool TaskManager::load(std::string& message) {
     std::string errorMessage;
-    std::vector<Task> loaded = Storage::loadTasks(username_, errorMessage);
+    TaskFileData loaded = Storage::loadTasks(username_, errorMessage);
     if (!errorMessage.empty()) {
         message = errorMessage;
         return false;
@@ -22,7 +21,7 @@ bool TaskManager::load(std::string& message) {
     std::unordered_set<int> ids;
     std::unordered_set<std::string> startTimes;
     int maxId = 0;
-    for (const auto& task : loaded) {
+    for (const auto& task : loaded.tasks) {
         if (!ids.insert(task.id).second) {
             message = "Error: duplicate task id in storage.";
             return false;
@@ -39,8 +38,8 @@ bool TaskManager::load(std::string& message) {
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    tasks_ = std::move(loaded);
-    nextId_ = maxId + 1;
+    tasks_ = std::move(loaded.tasks);
+    nextId_ = std::max(loaded.nextId, maxId + 1);
     sortTasksUnlocked();
     message = "Tasks loaded successfully.";
     return true;
@@ -79,10 +78,15 @@ bool TaskManager::addTask(Task task, std::string& message) {
         return false;
     }
 
+    const int originalNextId = nextId_;
     task.id = nextId_++;
     tasks_.push_back(task);
     sortTasksUnlocked();
     if (!saveUnlocked(message)) {
+        tasks_.erase(std::remove_if(tasks_.begin(), tasks_.end(), [&](const Task& existing) {
+            return existing.id == task.id;
+        }), tasks_.end());
+        nextId_ = originalNextId;
         return false;
     }
 
@@ -125,9 +129,11 @@ bool TaskManager::updateTask(int taskId, const Task& updatedTask, std::string& m
         return false;
     }
 
+    const std::vector<Task> originalTasks = tasks_;
     *it = replacement;
     sortTasksUnlocked();
     if (!saveUnlocked(message)) {
+        tasks_ = originalTasks;
         return false;
     }
 
@@ -145,8 +151,10 @@ bool TaskManager::deleteTaskById(int id, std::string& message) {
         return false;
     }
 
+    const std::vector<Task> originalTasks = tasks_;
     tasks_.erase(it);
     if (!saveUnlocked(message)) {
+        tasks_ = originalTasks;
         return false;
     }
     message = "Task deleted successfully.";
@@ -182,8 +190,8 @@ std::vector<Task> TaskManager::getTasksByMonth(const std::string& month) const {
 
 bool TaskManager::collectDueReminders(std::vector<Task>& reminders, std::string& message) {
     std::lock_guard<std::mutex> lock(mutex_);
-    reminders.clear();
     const std::time_t now = std::time(nullptr);
+    const std::vector<Task> originalTasks = tasks_;
     bool changed = false;
 
     for (auto& task : tasks_) {
@@ -199,6 +207,7 @@ bool TaskManager::collectDueReminders(std::vector<Task>& reminders, std::string&
     }
 
     if (changed && !saveUnlocked(message)) {
+        tasks_ = originalTasks;
         reminders.clear();
         return false;
     }
@@ -216,7 +225,7 @@ int TaskManager::generateNextId() const {
 
 bool TaskManager::saveUnlocked(std::string& message) const {
     std::string errorMessage;
-    if (!Storage::saveTasks(username_, tasks_, errorMessage)) {
+    if (!Storage::saveTasks(username_, tasks_, nextId_, errorMessage)) {
         message = errorMessage;
         return false;
     }
