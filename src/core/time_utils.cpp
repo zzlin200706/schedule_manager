@@ -1,5 +1,7 @@
 #include "time_utils.h"
 
+#include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <sstream>
 
@@ -83,4 +85,88 @@ bool sameDay(const std::string& dateTime, const std::string& day) {
 
 bool sameMonth(const std::string& dateTime, const std::string& month) {
     return dateTime.size() >= 7U && dateTime.substr(0, 7) == month;
+}
+
+std::string trim(const std::string& value) {
+    const auto first = std::find_if_not(value.begin(), value.end(), [](unsigned char ch) {
+        return std::isspace(ch) != 0;
+    });
+    if (first == value.end()) {
+        return "";
+    }
+
+    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char ch) {
+        return std::isspace(ch) != 0;
+    }).base();
+    return std::string(first, last);
+}
+
+bool tokenizeCommandLine(const std::string& line,
+                         std::vector<std::string>& tokens,
+                         std::string& errorMessage) {
+    tokens.clear();
+    std::string token;
+    char quote = '\0';
+    bool escaping = false;
+    bool tokenStarted = false;
+
+    for (const unsigned char rawCh : line) {
+        const char ch = static_cast<char>(rawCh);
+        if (escaping) {
+            token.push_back(ch);
+            tokenStarted = true;
+            escaping = false;
+            continue;
+        }
+
+        if (ch == '\\' && quote != '\'') {
+            escaping = true;
+            tokenStarted = true;
+            continue;
+        }
+
+        if (quote != '\0') {
+            if (ch == quote) {
+                quote = '\0';
+            } else {
+                token.push_back(ch);
+            }
+            tokenStarted = true;
+            continue;
+        }
+
+        if (ch == '\'' || ch == '"') {
+            quote = ch;
+            tokenStarted = true;
+            continue;
+        }
+
+        if (std::isspace(rawCh) != 0) {
+            if (tokenStarted) {
+                tokens.push_back(token);
+                token.clear();
+                tokenStarted = false;
+            }
+            continue;
+        }
+
+        token.push_back(ch);
+        tokenStarted = true;
+    }
+
+    if (escaping) {
+        errorMessage = "Error: command cannot end with an escape character.";
+        tokens.clear();
+        return false;
+    }
+    if (quote != '\0') {
+        errorMessage = "Error: unmatched quote in command.";
+        tokens.clear();
+        return false;
+    }
+    if (tokenStarted) {
+        tokens.push_back(token);
+    }
+    errorMessage.clear();
+    return true;
 }

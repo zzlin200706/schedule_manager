@@ -4,6 +4,7 @@
 #include "time_utils.h"
 
 #include <algorithm>
+#include <ctime>
 #include <limits>
 #include <unordered_set>
 #include <utility>
@@ -179,26 +180,34 @@ std::vector<Task> TaskManager::getTasksByMonth(const std::string& month) const {
     return filtered;
 }
 
-std::vector<Task> TaskManager::getDueReminders() const {
+
+bool TaskManager::collectDueReminders(std::vector<Task>& reminders, std::string& message) {
     std::lock_guard<std::mutex> lock(mutex_);
+    reminders.clear();
+    const std::time_t now = std::time(nullptr);
+    bool changed = false;
 
-    std::vector<Task> result;
-
-    std::time_t now = std::time(nullptr);
-
-    for (const auto& task : tasks_) {
-        if (!task.reminded && !task.remindTime.empty()) {
-            auto remind = parseDateTime(task.remindTime);
-
-            if (remind.has_value() &&
-                std::difftime(std::mktime(&remind.value()),
-                              now) <= 0) {
-                result.push_back(task);
-            }
+    for (auto& task : tasks_) {
+        const auto remindTm = parseDateTime(task.remindTime);
+        if (!remindTm.has_value()) {
+            continue;
+        }
+        if (!task.reminded && toTimeT(*remindTm) <= now) {
+            task.reminded = true;
+            reminders.push_back(task);
+            changed = true;
         }
     }
 
-    return result;
+    if (changed && !saveUnlocked(message)) {
+        reminders.clear();
+        return false;
+    }
+
+    if (!changed) {
+        message.clear();
+    }
+    return true;
 }
 
 int TaskManager::generateNextId() const {

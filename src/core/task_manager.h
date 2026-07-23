@@ -18,7 +18,8 @@ public:
     std::vector<Task> getAllTasks() const;
     std::vector<Task> getTasksByDay(const std::string& day) const;
     std::vector<Task> getTasksByMonth(const std::string& month) const;
-    std::vector<Task> getDueReminders() const;
+
+    bool collectDueReminders(std::vector<Task>& reminders, std::string& message);
     int generateNextId() const;
 
 private:
