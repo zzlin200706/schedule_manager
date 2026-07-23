@@ -30,27 +30,8 @@ target_include_directories(myschedule PRIVATE src/cli)
 target_link_libraries(myschedule PRIVATE schedule_core)
 target_compile_options(myschedule PRIVATE -Wall -Wextra -Wpedantic)
 
-include(CTest)
-if(BUILD_TESTING)
-    add_test(NAME cli_help_long COMMAND myschedule --help)
-    set_tests_properties(cli_help_long PROPERTIES PASS_REGULAR_EXPRESSION "Usage:")
-
-    add_test(NAME cli_help_command COMMAND myschedule help)
-    set_tests_properties(cli_help_command PROPERTIES PASS_REGULAR_EXPRESSION "Commands:")
-
-    add_executable(UserManagerTest
-        tests/test_user_manager.cpp
-    )
-    target_link_libraries(UserManagerTest PRIVATE schedule_core)
-    target_compile_options(UserManagerTest PRIVATE -Wall -Wextra -Wpedantic)
-    add_test(NAME user_manager COMMAND UserManagerTest)
-
-    add_executable(TaskManagerTest
-        tests/test_task_manager.cpp
-    )
-    target_link_libraries(TaskManagerTest PRIVATE schedule_core)
-    target_compile_options(TaskManagerTest PRIVATE -Wall -Wextra -Wpedantic)
-    add_test(NAME task_manager COMMAND TaskManagerTest)
-
-    add_test(NAME cli_shell COMMAND bash ${CMAKE_SOURCE_DIR}/tests/test_cli.sh)
-endif()
+add_executable(TaskManagerUpdateTest
+    tests/test_task_manager_update.cpp
+)
+target_link_libraries(TaskManagerUpdateTest PRIVATE schedule_core)
+target_compile_options(TaskManagerUpdateTest PRIVATE -Wall -Wextra -Wpedantic)

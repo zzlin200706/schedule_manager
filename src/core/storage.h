@@ -12,16 +12,21 @@ struct UserRecord {
     std::string passwordHash;
 };
 
+struct TaskFileData {
+    std::vector<Task> tasks;
+    int nextId = 1;
+};
+
 class Storage {
 public:
     static bool ensureDataDir(std::string& errorMessage);
     static std::map<std::string, UserRecord> loadUsers(std::string& errorMessage);
     static bool saveUsers(const std::map<std::string, UserRecord>& users, std::string& errorMessage);
-    static std::vector<Task> loadTasks(const std::string& username, std::string& errorMessage);
+    static TaskFileData loadTasks(const std::string& username, std::string& errorMessage);
     static bool saveTasks(const std::string& username,
                           const std::vector<Task>& tasks,
+                          int nextId,
                           std::string& errorMessage);
-    static std::string taskFilePathForUser(const std::string& username);
 
 private:
     static std::string rootDir();
