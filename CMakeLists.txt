@@ -51,4 +51,6 @@ if(BUILD_TESTING)
     target_link_libraries(TaskManagerTest PRIVATE schedule_core)
     target_compile_options(TaskManagerTest PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME task_manager COMMAND TaskManagerTest)
+
+    add_test(NAME cli_shell COMMAND bash ${CMAKE_SOURCE_DIR}/tests/test_cli.sh)
 endif()
