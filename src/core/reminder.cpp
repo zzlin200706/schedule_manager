@@ -1,5 +1,5 @@
 #include "reminder.h"
-
+#include <iostream>
 #include <chrono>
 #include <utility>
 #include<cstdlib>
@@ -45,16 +45,29 @@ void Reminder::stop() {
 
 void Reminder::run() {
     while (running_) {
+
         std::vector<Task> reminders;
+        std::string message;
 
-        reminders = taskManager_.getDueReminders();
+        if (taskManager_.collectDueReminders(reminders, message)) {
 
-        for (const auto& task : reminders) {
-            if (onReminder_) {
-                onReminder_(task);
-            }
-            playReminderSound();
+    for (const auto& task : reminders) {
+        if (onReminder_) {
+            onReminder_(task);
         }
+    }
+
+    if (!reminders.empty()) {
+        playReminderSound();
+    }
+}
+    else if (!message.empty()) {
+
+            if (onError_) {
+                onError_(message);
+            }
+        }
+
 
         for (int second = 0; second < 10 && running_; ++second) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
