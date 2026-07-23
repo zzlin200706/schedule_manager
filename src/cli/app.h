@@ -7,6 +7,10 @@
 class App {
 public:
     int run(const std::vector<std::string>& args);
+
+private:
+    int runInteractiveMode();
+    int runAuthenticatedCommand(const std::vector<std::string>& args);
 };
 
 #endif
