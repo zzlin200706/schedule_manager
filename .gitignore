@@ -43,6 +43,8 @@ voice_service/.env
 voice_service/.venv/
 voice_service/__pycache__/
 voice_service/.pytest_cache/
+**/__pycache__/
+*.pyc
 schedule_manager_voice_*.wav
 
 # IDE local settings

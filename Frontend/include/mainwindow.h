@@ -14,6 +14,12 @@ class QComboBox;
 class QDateTimeEdit;
 class QLabel;
 class QLineEdit;
+#ifdef ENABLE_VOICE_ASSISTANT
+class QJsonObject;
+class QNetworkAccessManager;
+class QNetworkReply;
+class QProcess;
+#endif
 class QPushButton;
 class QScrollArea;
 class QSpinBox;
@@ -43,6 +49,16 @@ private slots:
     void clearTaskSelection();
     void confirmLogout();
     void checkDueTasks();
+#ifdef ENABLE_VOICE_ASSISTANT
+    void on_voice_record_button_clicked();
+    void onVoiceServiceStarted();
+    void onVoiceServiceFinished(int exitCode, int exitStatus);
+    void onVoiceServiceError();
+    void onVoiceRecorderStarted();
+    void onVoiceRecorderFinished(int exitCode, int exitStatus);
+    void onVoiceRecorderError();
+    void stopVoiceRecording(bool reachedTimeLimit);
+#endif
 
 private:
     QCalendarWidget* calendar;
@@ -58,6 +74,9 @@ private:
     QPushButton* delete_task_button;
     QPushButton* cancel_task_button;
     QPushButton* show_all_button;
+#ifdef ENABLE_VOICE_ASSISTANT
+    QPushButton* voice_record_button;
+#endif
     QLabel* taskCountLabel;
     QLabel* filterLabel;
     QLabel* feedbackLabel;
@@ -69,6 +88,22 @@ private:
 
     std::vector<task> current_user_tasks;
     QTimer* reminderTimer;
+#ifdef ENABLE_VOICE_ASSISTANT
+    QNetworkAccessManager* voiceNetworkManager;
+    QProcess* voiceServiceProcess;
+    QTimer* voiceRecordingTimer;
+    QProcess* voiceRecordingProcess;
+    QString voiceRecordingPath_;
+    bool voiceServiceReady_ = false;
+    bool voiceServiceOwnedProcess_ = false;
+    bool voiceServiceStarting_ = false;
+    bool voicePendingStartRecording_ = false;
+    bool voiceTranscriptionActive_ = false;
+    bool voiceParsingActive_ = false;
+    int voiceServiceHealthAttempts_ = 0;
+    bool voiceRecordingActive_ = false;
+    bool voiceRecordingStopping_ = false;
+#endif
     CoreAdapter coreAdapter_;
     bool filteringByDate_ = false;
     QDate selectedFilterDate_;
@@ -81,6 +116,29 @@ private:
     void updateSelectionActions();
     void showFeedback(const QString& message, const char* kind = "info");
     int selectedTaskId() const;
+#ifdef ENABLE_VOICE_ASSISTANT
+    void ensureVoiceServiceThenStartRecording();
+    void beginVoiceRecording();
+    void requestVoiceServiceHealthCheck(bool allowStart);
+    void handleVoiceServiceHealthReply(QNetworkReply* reply, bool allowStart);
+    void startVoiceServiceProcess();
+    void scheduleVoiceServiceHealthRetry();
+    void failVoiceServiceStartup(const QString& message);
+    QString voiceServiceDirectory() const;
+    QString voiceServicePythonExecutable(const QString& serviceDirectory) const;
+    void requestVoiceTranscription(const QString& audioPath);
+    void handleVoiceTranscriptionReply(QNetworkReply* reply);
+    void requestVoiceTaskParsing(const QString& transcript);
+    void handleVoiceTaskParseReply(QNetworkReply* reply, const QString& transcript);
+    bool fillTaskFormFromParsedVoiceTask(const QJsonObject& object,
+                                         const QString& transcript,
+                                         QString& message);
+    bool applyPartialVoiceTaskFields(const QJsonObject& object,
+                                     const QString& transcript);
+    QString makeVoiceRecordingPath() const;
+    void resetVoiceRecordingUi();
+    void cleanupVoiceRecordingFile();
+#endif
 };
 
 #endif // MAINWINDOW_H

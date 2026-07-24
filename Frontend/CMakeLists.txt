@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(ScheduleManagerGUI)
 
+option(ENABLE_VOICE_ASSISTANT "Enable voice task assistant" OFF)
+
 # 设置C++标准
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,6 +11,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # 查找Qt5库
 find_package(Qt5 REQUIRED COMPONENTS Core Widgets)
 find_package(Threads REQUIRED)
+if(ENABLE_VOICE_ASSISTANT)
+    find_package(Qt5 REQUIRED COMPONENTS Network)
+endif()
 
 # 启用 Qt 的 MOC 和资源编译
 set(CMAKE_AUTOMOC ON)
@@ -26,6 +31,7 @@ set(CORE_BRIDGE_SOURCES
     ../src/core/task.cpp
     ../src/core/task_manager.cpp
     ../src/core/time_utils.cpp
+    ../src/core/audio_alert.cpp
 )
 
 # 源文件 (在src目录下)
@@ -47,6 +53,18 @@ set(HEADERS
     include/task.h
 )
 
+if(ENABLE_VOICE_ASSISTANT)
+    list(APPEND SOURCES
+        ../src/voice/task_data_validator.cpp
+        ../src/voice/voice_result.cpp
+    )
+    list(APPEND HEADERS
+        ../src/voice/parsed_task_data.h
+        ../src/voice/task_data_validator.h
+        ../src/voice/voice_result.h
+    )
+endif()
+
 # 创建可执行文件
 add_executable(ScheduleManagerGUI ${SOURCES} ${HEADERS})
 
@@ -54,6 +72,12 @@ target_include_directories(ScheduleManagerGUI PRIVATE
     include
     ../src/core
 )
+
+if(ENABLE_VOICE_ASSISTANT)
+    target_compile_definitions(ScheduleManagerGUI PRIVATE ENABLE_VOICE_ASSISTANT)
+    target_include_directories(ScheduleManagerGUI PRIVATE ../src/voice)
+    set(VOICE_QT_LIBRARIES Qt5::Network)
+endif()
 
 target_compile_options(ScheduleManagerGUI PRIVATE
     $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-finput-charset=UTF-8>
@@ -72,6 +96,7 @@ endif()
 target_link_libraries(ScheduleManagerGUI
     Qt5::Core
     Qt5::Widgets
+    ${VOICE_QT_LIBRARIES}
     Threads::Threads
 )
 
