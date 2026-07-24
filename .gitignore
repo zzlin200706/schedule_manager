@@ -43,6 +43,7 @@ voice_service/.env
 voice_service/.venv/
 voice_service/__pycache__/
 voice_service/.pytest_cache/
+config/voice.local.json
 **/__pycache__/
 *.pyc
 schedule_manager_voice_*.wav
@@ -50,6 +51,7 @@ schedule_manager_voice_*.wav
 # IDE local settings
 .vscode/
 **/.vscode/
+CMakeLists.txt.user
 
 # Accidental nested project copy
 schedule_manager-main/
