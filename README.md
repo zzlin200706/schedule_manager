@@ -1,6 +1,6 @@
 # MySchedule 日程管理器
 
-`MySchedule` 是一个面向 Linux、使用 C++17 和 CMake 渐进开发的本地日程管理软件.当前分支已完成核心账户管理、任务管理以及后台提醒模块，支持任务到期检测和音乐提醒播放。
+`MySchedule` 是一个面向 Linux、使用 C++17、CMake 和 Qt5 渐进开发的本地日程管理软件。当前分支处于 Step 7，已提供账户、任务管理、完整 CLI、后台提醒、强化的本地持久化能力、Qt5 图形界面和 CLI 音频提醒。
 
 ## 已实现
 
@@ -8,7 +8,7 @@
 - 提供任务 ID、名称、开始时间、优先级、分类、提醒时间和提醒状态；
 - 提供 `myschedule --help`、`myschedule help` 与 `myschedule run`；
 - 对无参数和未知命令返回错误；
-- 使用 CMake 构建，并通过 CTest 验证基础功能；
+- 使用 CMake 构建 CLI/Core 和 Qt5 图形界面；
 - 忽略构建产物、运行数据、日志和本地配置。
 - 支持用户名注册、正确密码登录和错误密码拒绝；
 - 使用每用户独立 salt 与 salted FNV-1a 保存密码，不保存明文；
@@ -22,35 +22,18 @@
 - 支持交互式 `run` 登录、首次注册、Shell 风格命令循环和引号任务名；
 - 使用 UTF-8 显示宽度处理中文表格和长任务名截断；
 - 登录后启动后台提醒线程，主线程等待输入时仍可提醒，并在退出时安全停止和 `join`；
-- 提醒触发后会更新并保存 `reminded` 状态，避免重复提醒。
+- 提醒触发后会更新并保存 `reminded` 状态，避免重复提醒；
+- CLI 提醒触发时调用 `mpg123` 播放 `resources/alarm.mp3`。
+- 在任务文件中持久化 `next_id`，删除任意任务或重启程序后均不会复用历史 ID；
+- 账户和任务数据先完整写入临时文件，再通过 `rename` 原子替换正式文件；
+- 添加、修改、删除及提醒状态保存失败时回滚内存状态，且不改变原文件；
+- 严格拒绝损坏的账户、任务、任务 ID 和 `next_id` 数据，不静默覆盖损坏文件；
+- 无参数或 `run` 参数非法时在账户存储初始化前退出，不创建数据文件。
+- 提供 Qt5 登录、注册、任务列表、任务添加、删除、全字段修改、日期筛选、月份切换、空状态和提醒弹窗；
+- Qt 与 CLI 共用 Core，使用相同账户文件、任务文件、ID、时间、排序和唯一性规则；
+- 关闭 Qt 主窗口或退出登录时停止界面提醒定时器。
 
-Qt5 图形界面尚未实现。当前任务文件仍使用直接覆写，且 `next_id` 尚未独立持久化；原子替换、保存失败回滚、损坏文件全面拒绝和删除后永不复用 ID 将在 Step 5 完成。后续安排见 [开发路线图](docs/roadmap.md)。
-
-### 用户管理
-
-- 支持用户名注册；
-- 支持正确密码登录和错误密码拒绝；
-- 使用每用户独立 salt 与 salted FNV-1a 保存密码，不保存明文密码；
-- 将账户保存到 `data/users.txt`；
-- 为不同用户生成独立任务文件路径。
-
-### 任务管理
-
-- 严格校验日期时间、优先级、分类和提醒时间；
-- 支持 Core 层任务添加、删除、全字段修改；
-- 支持按日查询、按月查询和全部查询；
-- 拒绝相同开始时间的任务冲突；
-- 按真实开始时间排序查询结果；
-- 为优先级、分类和提醒时间提供默认值；
-- 使用每用户独立任务文件保存任务列表。
-
-### 后台提醒与音乐提醒
-
-- 新增 `Reminder` 模块，实现后台提醒检测；
-- 支持扫描即将到期任务；
-- 添加 `resources/alarm.mp3` 音频资源；
-- 提醒触发时调用 `mpg123` 播放提示音；
-- 保持原有任务管理结构不变。
+当前 Step 7 保留成员 B 的 CLI 音频提醒实现。Step 8 会将音频提醒下沉到 Core，让 CLI 和 Qt 复用同一音频能力，并对齐参考项目的语音识别功能。后续安排见 [开发路线图](docs/roadmap.md)。
 
 ## 项目结构
 
@@ -64,6 +47,12 @@ schedule_manager_new/
 │   └── roadmap.md
 ├── resources/
 │   └── alarm.mp3
+├── Frontend/
+│   ├── CMakeLists.txt
+│   ├── include/
+│   ├── resources/
+│   ├── src/
+│   └── style/
 └── src/
     ├── cli/
     │   ├── app.cpp
@@ -76,18 +65,15 @@ schedule_manager_new/
         ├── reminder.h
         ├── storage.cpp
         ├── storage.h
-        ├── reminder.cpp
-        ├── reminder.h
         ├── task.cpp
         ├── task.h
         ├── task_manager.cpp
         ├── task_manager.h
         ├── time_utils.cpp
         ├── time_utils.h
-        └── user.cpp
+        ├── user.cpp
         └── user.h
-
- ```
+```
 
 ## 构建与运行
 
@@ -103,13 +89,14 @@ cmake --build build -j
 ./build/myschedule user1 123456 showtask --all
 ```
 
-## 测试
+Qt5 图形界面：
 
 ```bash
-ctest --test-dir build --output-on-failure
-bash -n tests/test_cli.sh
-bash tests/test_cli.sh
+cmake -S Frontend -B build-qt
+cmake --build build-qt -j
+./Frontend/ScheduleManagerGUI
 ```
 
-当前 CTest 覆盖两个帮助入口，账户注册、登录、salt 隔离和本地文件验证，任务字段校验、默认值、增删改查、筛选、排序和基础持久化，以及 Step 4 CLI、交互式 run、UTF-8 表格、引号解析和后台提醒；测试矩阵会随功能逐步扩展。
-Reminder 模块已完成编译验证，并已单独验证 alarm.mp3 音频播放功能。完整提醒流程将在 CLI 集成完成后进行进一步测试。
+CLI 音频提醒依赖系统安装 `mpg123`。如果未安装或音频播放失败，提醒流程仍会继续显示文字提示。
+
+本仓库不保留 CTest、Shell 测试、Python 单元测试或其他程序测试内容。

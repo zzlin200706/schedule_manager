@@ -1,0 +1,581 @@
+/*
+ * My Schedule visual system
+ * Neutral canvas #F2F2F7, white cards #FFFFFF, system blue #007AFF.
+ */
+
+QWidget {
+    color: #1C1C1E;
+    font-family: "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "WenQuanYi Micro Hei", sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+QMainWindow,
+QDialog,
+QWidget#authPage,
+QWidget#workbenchPage {
+    background-color: #F2F2F7;
+}
+
+QFrame#authCard,
+QFrame#workbenchCard,
+QMessageBox {
+    background-color: #FFFFFF;
+    border: 1px solid #E5E5EA;
+    border-radius: 12px;
+}
+
+QFrame#accentRail {
+    background-color: #007AFF;
+    border: none;
+    border-radius: 2px;
+}
+
+QWidget#topBar,
+QWidget#leftColumn,
+QWidget#emptyState,
+QStackedWidget#taskStack,
+QScrollArea#leftScroll,
+QScrollArea#leftScroll QWidget#qt_scrollarea_viewport {
+    background-color: transparent;
+    border: none;
+}
+
+QLabel {
+    background-color: transparent;
+    border: none;
+}
+
+QLabel#authCalendarIcon {
+    min-height: 64px;
+    max-height: 64px;
+}
+
+QLabel#authTitleLabel {
+    color: #1C1C1E;
+    font-size: 30px;
+    font-weight: 700;
+}
+
+QLabel#pageTitleLabel {
+    color: #1C1C1E;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+QLabel#sectionTitleLabel {
+    color: #1C1C1E;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+QLabel#fieldLabel,
+QLabel#userNameLabel {
+    color: #1C1C1E;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QLabel#secondaryLabel,
+QLabel#helperLabel,
+QLabel#utilityLabel,
+QLabel#countLabel,
+QLabel#reminderUnitLabel {
+    color: #6E6E73;
+    font-weight: 400;
+}
+
+QLabel#helperLabel,
+QLabel#utilityLabel,
+QLabel#countLabel,
+QLabel#reminderUnitLabel {
+    font-size: 12px;
+}
+
+QLabel#formErrorLabel,
+QLabel#loginErrorLabel {
+    color: #C92A24;
+    background-color: #FFF0EF;
+    border: 1px solid #FFD0CC;
+    border-radius: 7px;
+    padding: 8px 10px;
+}
+
+QLabel#feedbackLabel {
+    color: #0062CC;
+    background-color: #F5F9FF;
+    border: 1px solid #D7E8FF;
+    border-radius: 7px;
+    padding: 8px 10px;
+}
+
+QLabel#feedbackLabel[kind="success"] {
+    color: #218C45;
+    background-color: #EAF8EF;
+    border-color: #CBEFD8;
+}
+
+QLabel#feedbackLabel[kind="error"] {
+    color: #C92A24;
+    background-color: #FFF0EF;
+    border-color: #FFD0CC;
+}
+
+QDialog#reminderDialog {
+    background-color: #F7F8FB;
+}
+
+QFrame#reminderPanel {
+    background-color: #FFFFFF;
+    border: 1px solid #D9DEE8;
+    border-radius: 12px;
+}
+
+QFrame#reminderTimeRail {
+    background-color: #007AFF;
+    border: none;
+    border-radius: 0;
+}
+
+QWidget#reminderContent {
+    background-color: transparent;
+    border: none;
+}
+
+QLabel#reminderLabel {
+    color: #0062CC;
+    background-color: #F5F9FF;
+    border: 1px solid #D7E8FF;
+    border-radius: 12px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#reminderSoundBadge {
+    color: #9B3A16;
+    background-color: #FFF2EA;
+    border: 1px solid #FFD7C2;
+    border-radius: 12px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#reminderTitle {
+    color: #1C1C1E;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+QLabel#reminderStartTime {
+    color: #0B3D91;
+    background-color: #F2F7FF;
+    border: 1px solid #D7E8FF;
+    border-radius: 9px;
+    padding: 10px 12px;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+QLabel#reminderMetaBadge {
+    color: #3A3A3C;
+    background-color: #F2F2F7;
+    border: 1px solid #E5E5EA;
+    border-radius: 11px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QLabel#filterPill {
+    color: #0062CC;
+    background-color: #F5F9FF;
+    border: 1px solid #D7E8FF;
+    border-radius: 12px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QLabel#emptyTitleLabel {
+    color: #1C1C1E;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+QFrame#userChip {
+    background-color: #FFFFFF;
+    border: 1px solid #E5E5EA;
+    border-radius: 9px;
+}
+
+QLineEdit,
+QComboBox,
+QDateTimeEdit,
+QSpinBox {
+    min-height: 38px;
+    background-color: #FFFFFF;
+    color: #1C1C1E;
+    border: 1px solid #D1D1D6;
+    border-radius: 8px;
+    padding: 0 10px;
+    selection-background-color: #007AFF;
+    selection-color: #FFFFFF;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+QFrame#authCard QLineEdit {
+    min-height: 44px;
+    border-radius: 9px;
+    font-size: 14px;
+}
+
+QLineEdit:hover,
+QComboBox:hover,
+QDateTimeEdit:hover,
+QSpinBox:hover {
+    border-color: #A9A9AF;
+}
+
+QLineEdit:focus,
+QComboBox:focus,
+QDateTimeEdit:focus,
+QSpinBox:focus {
+    background-color: #FFFFFF;
+    border: 2px solid #007AFF;
+}
+
+QLineEdit:disabled,
+QComboBox:disabled,
+QDateTimeEdit:disabled,
+QSpinBox:disabled {
+    color: #8E8E93;
+    background-color: #F7F7FA;
+    border-color: #E5E5EA;
+}
+
+QComboBox::drop-down,
+QDateTimeEdit::drop-down {
+    width: 28px;
+    border: none;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #FFFFFF;
+    color: #1C1C1E;
+    border: 1px solid #D1D1D6;
+    selection-background-color: #E8F2FF;
+    selection-color: #1C1C1E;
+    padding: 4px;
+    outline: none;
+}
+
+QAbstractSpinBox::up-button,
+QAbstractSpinBox::down-button {
+    width: 16px;
+    background-color: transparent;
+    border: none;
+}
+
+QPushButton {
+    min-height: 38px;
+    padding: 0 15px;
+    color: #1C1C1E;
+    background-color: #FFFFFF;
+    border: 1px solid #D1D1D6;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QPushButton:hover {
+    background-color: #F7F7FA;
+    border-color: #A9A9AF;
+}
+
+QPushButton:pressed {
+    background-color: #EDEDF1;
+    border-color: #8E8E93;
+}
+
+QPushButton:focus {
+    border: 2px solid #007AFF;
+}
+
+QPushButton:disabled {
+    color: #8E8E93;
+    background-color: #F2F2F7;
+    border-color: #E5E5EA;
+}
+
+QPushButton#primaryButton {
+    min-height: 42px;
+    color: #FFFFFF;
+    background-color: #007AFF;
+    border: 1px solid #007AFF;
+}
+
+QFrame#authCard QPushButton#primaryButton {
+    min-height: 44px;
+    border-radius: 9px;
+    font-size: 15px;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #0A84FF;
+    border-color: #0A84FF;
+}
+
+QPushButton#primaryButton:pressed {
+    background-color: #0062CC;
+    border-color: #0062CC;
+}
+
+QPushButton#reminderPrimaryButton {
+    min-width: 96px;
+    min-height: 38px;
+    color: #FFFFFF;
+    background-color: #1F6FEB;
+    border: 1px solid #1F6FEB;
+    border-radius: 8px;
+}
+
+QPushButton#reminderPrimaryButton:hover {
+    background-color: #2F7CF6;
+    border-color: #2F7CF6;
+}
+
+QPushButton#reminderPrimaryButton:pressed {
+    background-color: #0B57D0;
+    border-color: #0B57D0;
+}
+
+QPushButton#secondaryButton {
+    color: #0062CC;
+    background-color: #FFFFFF;
+    border-color: #D1D1D6;
+}
+
+QPushButton#secondaryButton:hover {
+    color: #007AFF;
+    background-color: #F5F9FF;
+    border-color: #A9D1FF;
+}
+
+QPushButton#quietButton {
+    color: #6E6E73;
+    background-color: transparent;
+    border-color: transparent;
+    font-weight: 500;
+}
+
+QPushButton#quietButton:hover {
+    color: #1C1C1E;
+    background-color: #F7F7FA;
+}
+
+QPushButton#linkButton {
+    min-height: 28px;
+    color: #007AFF;
+    background-color: transparent;
+    border: none;
+    padding: 0 3px;
+    font-weight: 600;
+}
+
+QPushButton#linkButton:hover {
+    color: #0062CC;
+    text-decoration: underline;
+}
+
+QPushButton#compactButton {
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+QPushButton#dangerButton {
+    color: #FF3B30;
+    background-color: #FFFFFF;
+    border-color: #FFD0CC;
+}
+
+QPushButton#dangerButton:hover {
+    color: #D70015;
+    background-color: #FFF0EF;
+    border-color: #FFAAA3;
+}
+
+QPushButton#dangerButton:pressed {
+    background-color: #FFE0DD;
+}
+
+QPushButton#dangerButton:disabled {
+    color: #8E8E93;
+    background-color: #F2F2F7;
+    border-color: #E5E5EA;
+}
+
+QTableWidget#taskTable {
+    background-color: #FFFFFF;
+    alternate-background-color: #FAFAFC;
+    border: 1px solid #E5E5EA;
+    border-radius: 9px;
+    gridline-color: transparent;
+    selection-background-color: #E8F2FF;
+    selection-color: #1C1C1E;
+    outline: none;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+QTableWidget#taskTable::item {
+    border: none;
+    border-bottom: 1px solid #E5E5EA;
+    padding: 7px 9px;
+}
+
+QTableWidget#taskTable::item:hover {
+    background-color: #F5F9FF;
+}
+
+QTableWidget#taskTable::item:selected {
+    color: #1C1C1E;
+    background-color: #E8F2FF;
+}
+
+QHeaderView::section {
+    min-height: 38px;
+    color: #6E6E73;
+    background-color: #F7F7FA;
+    border: none;
+    border-right: 1px solid #E5E5EA;
+    border-bottom: 1px solid #E5E5EA;
+    padding: 0 9px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QHeaderView::section:last {
+    border-right: none;
+}
+
+QCalendarWidget#scheduleCalendar {
+    background-color: #FFFFFF;
+    border: none;
+}
+
+QCalendarWidget#scheduleCalendar QWidget {
+    background-color: transparent;
+}
+
+QCalendarWidget#scheduleCalendar QToolButton {
+    min-height: 26px;
+    color: #1C1C1E;
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 0 7px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+QCalendarWidget#scheduleCalendar QToolButton:hover {
+    color: #007AFF;
+    background-color: #F5F9FF;
+}
+
+QCalendarWidget#scheduleCalendar QToolButton#qt_calendar_prevmonth {
+    qproperty-icon: url(:/icons/chevron-left.svg);
+}
+
+QCalendarWidget#scheduleCalendar QToolButton#qt_calendar_nextmonth {
+    qproperty-icon: url(:/icons/chevron-right.svg);
+}
+
+QCalendarWidget#scheduleCalendar QTableView {
+    color: #1C1C1E;
+    background-color: #FFFFFF;
+    alternate-background-color: #F7F7FA;
+    border: none;
+    outline: none;
+    selection-background-color: #007AFF;
+    selection-color: #FFFFFF;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+QCalendarWidget#scheduleCalendar QTableView::item {
+    border-radius: 6px;
+    padding: 1px;
+    font-weight: 500;
+}
+
+QCalendarWidget#scheduleCalendar QTableView::item:selected {
+    font-weight: 600;
+}
+
+QCalendarWidget#scheduleCalendar QHeaderView::section {
+    color: #6E6E73;
+    background-color: #F7F7FA;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QSplitter#workspaceSplitter::handle {
+    background-color: transparent;
+}
+
+QMessageBox QLabel {
+    min-width: 250px;
+    color: #1C1C1E;
+    background-color: transparent;
+}
+
+QMessageBox#reminderMessageBox QLabel {
+    min-width: 330px;
+}
+
+QScrollBar:vertical {
+    width: 10px;
+    margin: 3px;
+    background-color: transparent;
+}
+
+QScrollBar::handle:vertical {
+    min-height: 28px;
+    background-color: #C7C7CC;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #A9A9AF;
+}
+
+QScrollBar:horizontal {
+    height: 10px;
+    margin: 3px;
+    background-color: transparent;
+}
+
+QScrollBar::handle:horizontal {
+    min-width: 28px;
+    background-color: #C7C7CC;
+    border-radius: 4px;
+}
+
+QScrollBar::add-line,
+QScrollBar::sub-line,
+QScrollBar::add-page,
+QScrollBar::sub-page {
+    width: 0;
+    height: 0;
+    background-color: transparent;
+    border: none;
+}
