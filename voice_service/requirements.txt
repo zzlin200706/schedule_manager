@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-multipart
+faster-whisper
+httpx
+pydantic
+python-dotenv

@@ -44,3 +44,12 @@ token
 
 # Accidental nested project copy
 schedule_manager-main/
+
+
+
+# Voice service local environment
+voice_service/.env
+voice_service/.venv/
+voice_service/__pycache__/
+**/__pycache__/
+*.pyc
