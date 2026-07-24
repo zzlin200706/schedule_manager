@@ -14,6 +14,7 @@ namespace fs = std::filesystem;
 namespace {
 constexpr const char* kTaskHeader =
     "id|name|start_time|priority|category|remind_time|reminded";
+constexpr const char* kNextIdPrefix = "next_id|";
 
 bool hasProjectMarkers(const fs::path& candidate) {
     std::error_code error;
@@ -43,6 +44,103 @@ fs::path executableDir() {
     }
     buffer[static_cast<std::size_t>(length)] = '\0';
     return fs::path(buffer.data()).parent_path();
+}
+
+bool parsePositiveInteger(const std::string& value, int& result) {
+    if (value.empty()) {
+        return false;
+    }
+    for (const unsigned char ch : value) {
+        if (ch < '0' || ch > '9') {
+            return false;
+        }
+    }
+
+    try {
+        std::size_t consumed = 0;
+        const int parsed = std::stoi(value, &consumed, 10);
+        if (consumed != value.size() || parsed <= 0) {
+            return false;
+        }
+        result = parsed;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool isValidStoredUsername(const std::string& username) {
+    if (username.empty()) {
+        return false;
+    }
+    for (const unsigned char ch : username) {
+        const bool allowed =
+            (ch >= 'a' && ch <= 'z') ||
+            (ch >= 'A' && ch <= 'Z') ||
+            (ch >= '0' && ch <= '9') ||
+            ch == '_' || ch == '-';
+        if (!allowed) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool isHex64(const std::string& value) {
+    if (value.size() != 16U) {
+        return false;
+    }
+    for (const unsigned char ch : value) {
+        const bool hexadecimal =
+            (ch >= '0' && ch <= '9') ||
+            (ch >= 'a' && ch <= 'f') ||
+            (ch >= 'A' && ch <= 'F');
+        if (!hexadecimal) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool writeTextFileAtomically(const fs::path& path,
+                             const std::string& contents,
+                             std::string& errorMessage) {
+    fs::path temporaryPath = path;
+    temporaryPath += ".tmp";
+
+    std::error_code error;
+    fs::remove(temporaryPath, error);
+    error.clear();
+
+    std::ofstream output(temporaryPath, std::ios::binary | std::ios::trunc);
+    if (!output.is_open()) {
+        errorMessage = "Error: failed to open temporary storage file for writing.";
+        return false;
+    }
+
+    output << contents;
+    output.flush();
+    if (!output.good()) {
+        output.close();
+        fs::remove(temporaryPath, error);
+        errorMessage = "Error: failed while writing temporary storage file.";
+        return false;
+    }
+
+    output.close();
+    if (output.fail()) {
+        fs::remove(temporaryPath, error);
+        errorMessage = "Error: failed to close temporary storage file.";
+        return false;
+    }
+
+    fs::rename(temporaryPath, path, error);
+    if (error) {
+        fs::remove(temporaryPath, error);
+        errorMessage = "Error: failed to replace storage file.";
+        return false;
+    }
+    return true;
 }
 }
 
@@ -85,8 +183,8 @@ bool Storage::ensureDataDir(std::string& errorMessage) {
     try {
         fs::create_directories(dataDir());
         return true;
-    } catch (const std::exception& error) {
-        errorMessage = std::string("Error: failed to create data directory. ") + error.what();
+    } catch (const std::exception& ex) {
+        errorMessage = std::string("Error: failed to create data directory. ") + ex.what();
         return false;
     }
 }
@@ -99,6 +197,9 @@ std::map<std::string, UserRecord> Storage::loadUsers(std::string& errorMessage) 
 
     std::ifstream input(usersPath());
     if (!input.is_open()) {
+        if (!writeTextFileAtomically(usersPath(), "", errorMessage)) {
+            errorMessage = "Error: failed to create user storage file. " + errorMessage;
+        }
         return users;
     }
 
@@ -114,16 +215,15 @@ std::map<std::string, UserRecord> Storage::loadUsers(std::string& errorMessage) 
         std::string hash;
         if (!std::getline(stream, username, ':') ||
             !std::getline(stream, salt, ':') ||
-            !std::getline(stream, hash)) {
+            !std::getline(stream, hash) ||
+            !isValidStoredUsername(username) || !isHex64(salt) || !isHex64(hash) ||
+            hash.find(':') != std::string::npos ||
+            users.find(username) != users.end()) {
             errorMessage = "Error: invalid users.txt format.";
             users.clear();
             return users;
         }
         users[username] = UserRecord{salt, hash};
-    }
-    if (input.bad()) {
-        errorMessage = "Error: failed while reading users.txt.";
-        users.clear();
     }
     return users;
 }
@@ -133,78 +233,83 @@ bool Storage::saveUsers(const std::map<std::string, UserRecord>& users, std::str
         return false;
     }
 
-    std::ofstream output(usersPath(), std::ios::trunc);
-    if (!output.is_open()) {
-        errorMessage = "Error: failed to open users.txt for writing.";
-        return false;
-    }
-
+    std::ostringstream contents;
     for (const auto& [username, record] : users) {
-        output << username << ':' << record.salt << ':' << record.passwordHash << '\n';
+        contents << username << ':' << record.salt << ':' << record.passwordHash << '\n';
     }
-    if (!output.good()) {
-        errorMessage = "Error: failed while writing users.txt.";
-        return false;
-    }
-    return true;
+    return writeTextFileAtomically(usersPath(), contents.str(), errorMessage);
 }
 
-std::vector<Task> Storage::loadTasks(const std::string& username, std::string& errorMessage) {
-    std::vector<Task> tasks;
+TaskFileData Storage::loadTasks(const std::string& username, std::string& errorMessage) {
+    TaskFileData data;
     if (!ensureDataDir(errorMessage)) {
-        return tasks;
+        return data;
     }
 
-    std::ifstream input(tasksPath(username));
+    const std::string path = tasksPath(username);
+    std::ifstream input(path);
     if (!input.is_open()) {
-        return tasks;
+        const std::string initialContents =
+            std::string(kTaskHeader) + "\n" + kNextIdPrefix + "1\n";
+        if (!writeTextFileAtomically(path, initialContents, errorMessage)) {
+            errorMessage = "Error: failed to create task storage file for user. " + errorMessage;
+        }
+        return data;
     }
 
     std::string line;
+    bool foundNextId = false;
     while (std::getline(input, line)) {
-        if (line.empty() || line == kTaskHeader) {
+        if (line.empty()) {
             continue;
         }
-
+        if (line == kTaskHeader) {
+            continue;
+        }
+        if (line.rfind(kNextIdPrefix, 0) == 0) {
+            int parsedNextId = 0;
+            if (foundNextId ||
+                !parsePositiveInteger(line.substr(std::char_traits<char>::length(kNextIdPrefix)),
+                                      parsedNextId)) {
+                errorMessage = "Error: invalid next_id metadata in task storage.";
+                return {};
+            }
+            data.nextId = parsedNextId;
+            foundNextId = true;
+            continue;
+        }
         std::string parseError;
         const auto parsed = deserializeTask(line, parseError);
         if (!parsed.has_value()) {
             errorMessage = parseError;
             return {};
         }
-        tasks.push_back(*parsed);
+        data.tasks.push_back(*parsed);
     }
     if (input.bad()) {
         errorMessage = "Error: failed while reading task storage file.";
         return {};
     }
-    return tasks;
+    return data;
 }
 
 bool Storage::saveTasks(const std::string& username,
                         const std::vector<Task>& tasks,
+                        int nextId,
                         std::string& errorMessage) {
     if (!ensureDataDir(errorMessage)) {
         return false;
     }
-
-    std::ofstream output(tasksPath(username), std::ios::trunc);
-    if (!output.is_open()) {
-        errorMessage = "Error: failed to open task storage file for writing.";
+    if (nextId <= 0) {
+        errorMessage = "Error: next task id must be positive.";
         return false;
     }
 
-    output << kTaskHeader << '\n';
+    std::ostringstream contents;
+    contents << kTaskHeader << '\n';
+    contents << kNextIdPrefix << nextId << '\n';
     for (const auto& task : tasks) {
-        output << serializeTask(task) << '\n';
+        contents << serializeTask(task) << '\n';
     }
-    if (!output.good()) {
-        errorMessage = "Error: failed while writing task storage file.";
-        return false;
-    }
-    return true;
-}
-
-std::string Storage::taskFilePathForUser(const std::string& username) {
-    return tasksPath(username);
+    return writeTextFileAtomically(tasksPath(username), contents.str(), errorMessage);
 }
