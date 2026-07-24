@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 
+#include "audio_alert.h"
+
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QCalendarWidget>
@@ -14,11 +16,29 @@
 #include <QGridLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
+#ifdef ENABLE_VOICE_ASSISTANT
+#include <QFile>
+#include <QHttpMultiPart>
+#include <QInputDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QVariant>
+#endif
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
 #include <QMessageBox>
 #include <QPushButton>
+#ifdef ENABLE_VOICE_ASSISTANT
+#include <QDir>
+#include <QFileInfo>
+#include <QProcess>
+#endif
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QSpinBox>
@@ -28,18 +48,35 @@
 #include <QStringList>
 #include <QTableWidget>
 #include <QTimer>
+#ifdef ENABLE_VOICE_ASSISTANT
+#include <QTimeZone>
+#endif
 #include <QTextCharFormat>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include <algorithm>
+#ifdef ENABLE_VOICE_ASSISTANT
+#include <csignal>
+#include <optional>
+
+#include "task_data_validator.h"
+#endif
 #include <ctime>
 
 extern std::string current_user_name;
 
 namespace {
 constexpr int kTableRowHeight = 44;
+#ifdef ENABLE_VOICE_ASSISTANT
+constexpr int kVoiceHealthRetryIntervalMs = 1000;
+constexpr int kVoiceHealthTimeoutMs = 1500;
+constexpr int kVoiceServiceMaxHealthAttempts = 180;
+constexpr int kVoiceSttTimeoutMs = 90000;
+constexpr int kVoiceParseTimeoutMs = 90000;
+const char* kVoiceServiceBaseUrl = "http://127.0.0.1:8765";
+#endif
 
 const QColor kHighPriorityBackground("#FFF0EF");
 const QColor kHighPriorityText("#C92A24");
@@ -187,6 +224,138 @@ void showReminderDialog(QWidget* parent, const task& reminder)
     dialog->show();
 }
 
+#ifdef ENABLE_VOICE_ASSISTANT
+QString voiceServiceReplyMessage(const QByteArray& body, const QString& fallback)
+{
+    QJsonParseError parseError {};
+    const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
+    if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+        const QJsonObject object = document.object();
+        const QString message = object.value(QStringLiteral("message")).toString().trimmed();
+        if (!message.isEmpty()) {
+            return message;
+        }
+        const QString code = object.value(QStringLiteral("code")).toString().trimmed();
+        if (!code.isEmpty()) {
+            return code;
+        }
+    }
+    return fallback;
+}
+
+QDateTime voiceDateTimeFromString(const QString& value)
+{
+    return QDateTime::fromString(value.trimmed(), QStringLiteral("yyyy-MM-dd HH:mm"));
+}
+
+std::optional<QString> optionalVoiceString(const QJsonObject& object,
+                                           const QString& fieldName)
+{
+    const QJsonValue value = object.value(fieldName);
+    if (value.isUndefined() || value.isNull() || !value.isString()) {
+        return std::nullopt;
+    }
+    return value.toString().trimmed();
+}
+
+bool readOptionalVoiceString(const QJsonObject& object,
+                             const QString& fieldName,
+                             std::optional<std::string>& output,
+                             QString& message)
+{
+    const QJsonValue value = object.value(fieldName);
+    if (value.isUndefined() || value.isNull()) {
+        output.reset();
+        return true;
+    }
+    if (!value.isString()) {
+        message = QStringLiteral("语音解析字段格式错误：%1。").arg(fieldName);
+        return false;
+    }
+    output = value.toString().trimmed().toStdString();
+    return true;
+}
+
+bool parsedTaskDataFromJson(const QJsonObject& object,
+                            const QString& transcript,
+                            ParsedTaskData& data,
+                            QString& message)
+{
+    const QJsonValue titleValue = object.value(QStringLiteral("title"));
+    if (!titleValue.isString()) {
+        message = QStringLiteral("语音解析字段格式错误：title。");
+        return false;
+    }
+
+    data = ParsedTaskData {};
+    data.title = titleValue.toString().trimmed().toStdString();
+    if (!readOptionalVoiceString(
+            object, QStringLiteral("start_time"), data.startTime, message) ||
+        !readOptionalVoiceString(
+            object, QStringLiteral("reminder_time"), data.reminderTime, message) ||
+        !readOptionalVoiceString(
+            object, QStringLiteral("priority"), data.priority, message) ||
+        !readOptionalVoiceString(
+            object, QStringLiteral("category"), data.category, message)) {
+        return false;
+    }
+
+    const QJsonValue missingValue = object.value(QStringLiteral("missing_fields"));
+    if (!missingValue.isArray()) {
+        message = QStringLiteral("语音解析字段格式错误：missing_fields。");
+        return false;
+    }
+
+    for (const QJsonValue& item : missingValue.toArray()) {
+        if (!item.isString()) {
+            message = QStringLiteral("语音解析字段格式错误：missing_fields。");
+            return false;
+        }
+        data.missingFields.push_back(item.toString().toStdString());
+    }
+    data.originalText = transcript.toStdString();
+    return true;
+}
+
+QString missingVoiceFieldLabel(const std::string& field)
+{
+    if (field == "title") {
+        return QStringLiteral("任务名称");
+    }
+    if (field == "start_time") {
+        return QStringLiteral("开始时间");
+    }
+    if (field == "reminder_time") {
+        return QStringLiteral("提醒时间");
+    }
+    if (field == "priority") {
+        return QStringLiteral("优先级");
+    }
+    if (field == "category") {
+        return QStringLiteral("分类");
+    }
+    return QString::fromStdString(field);
+}
+
+QString missingVoiceFieldsText(const std::vector<std::string>& fields)
+{
+    QStringList labels;
+    for (const std::string& field : fields) {
+        labels << missingVoiceFieldLabel(field);
+    }
+    return labels.join(QStringLiteral("、"));
+}
+
+bool selectComboDataIfAvailable(QComboBox* combo, const QString& data)
+{
+    const int index = combo->findData(data);
+    if (index < 0) {
+        return false;
+    }
+    combo->setCurrentIndex(index);
+    return true;
+}
+#endif
 }
 
 MainWindow::MainWindow(const std::vector<task>& tasks, QWidget* parent)
@@ -415,6 +584,12 @@ MainWindow::MainWindow(const std::vector<task>& tasks, QWidget* parent)
     inputLayout->addWidget(add_task_button);
     inputLayout->addSpacing(6);
 
+#ifdef ENABLE_VOICE_ASSISTANT
+    voice_record_button = new QPushButton(QStringLiteral("开始录音"), inputCard);
+    voice_record_button->setObjectName("secondaryButton");
+    inputLayout->addWidget(voice_record_button);
+    inputLayout->addSpacing(6);
+#endif
 
     auto* editActions = new QHBoxLayout;
     editActions->setContentsMargins(0, 0, 0, 0);
@@ -537,6 +712,10 @@ MainWindow::MainWindow(const std::vector<task>& tasks, QWidget* parent)
             this, &MainWindow::updateSelectionActions);
     connect(add_task_button, &QPushButton::clicked,
             this, &MainWindow::on_add_task_button_clicked);
+#ifdef ENABLE_VOICE_ASSISTANT
+    connect(voice_record_button, &QPushButton::clicked,
+            this, &MainWindow::on_voice_record_button_clicked);
+#endif
     connect(edit_task_button, &QPushButton::clicked,
             this, &MainWindow::on_edit_button_clicked);
     connect(cancel_task_button, &QPushButton::clicked,
@@ -550,6 +729,36 @@ MainWindow::MainWindow(const std::vector<task>& tasks, QWidget* parent)
     connect(reminderTimer, &QTimer::timeout, this, &MainWindow::checkDueTasks);
     reminderTimer->start(10000);
 
+#ifdef ENABLE_VOICE_ASSISTANT
+    voiceNetworkManager = new QNetworkAccessManager(this);
+    voiceServiceProcess = new QProcess(this);
+    voiceServiceProcess->setProcessChannelMode(QProcess::MergedChannels);
+    voiceRecordingProcess = new QProcess(this);
+    voiceRecordingTimer = new QTimer(this);
+    voiceRecordingTimer->setSingleShot(true);
+    connect(voiceServiceProcess, &QProcess::started,
+            this, &MainWindow::onVoiceServiceStarted);
+    connect(voiceServiceProcess,
+            qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this,
+            [this](int exitCode, QProcess::ExitStatus exitStatus) {
+                onVoiceServiceFinished(exitCode, static_cast<int>(exitStatus));
+            });
+    connect(voiceServiceProcess, &QProcess::errorOccurred,
+            this, [this](QProcess::ProcessError) { onVoiceServiceError(); });
+    connect(voiceRecordingTimer, &QTimer::timeout,
+            this, [this]() { stopVoiceRecording(true); });
+    connect(voiceRecordingProcess, &QProcess::started,
+            this, &MainWindow::onVoiceRecorderStarted);
+    connect(voiceRecordingProcess,
+            qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this,
+            [this](int exitCode, QProcess::ExitStatus exitStatus) {
+                onVoiceRecorderFinished(exitCode, static_cast<int>(exitStatus));
+            });
+    connect(voiceRecordingProcess, &QProcess::errorOccurred,
+            this, [this](QProcess::ProcessError) { onVoiceRecorderError(); });
+#endif
 
     updateSelectionActions();
     refresh_task_table();
@@ -567,10 +776,652 @@ void MainWindow::checkDueTasks()
         return;
     }
 
+    if (!dueReminders.empty()) {
+        AudioAlert::playReminderSoundAsync();
+    }
+
     for (const auto& reminder : dueReminders) {
         showReminderDialog(this, reminder);
     }
 }
+
+#ifdef ENABLE_VOICE_ASSISTANT
+void MainWindow::on_voice_record_button_clicked()
+{
+    if (voiceTranscriptionActive_ || voiceParsingActive_ || voicePendingStartRecording_) {
+        return;
+    }
+    if (voiceRecordingActive_ || voiceRecordingProcess->state() != QProcess::NotRunning) {
+        stopVoiceRecording(false);
+        return;
+    }
+
+    ensureVoiceServiceThenStartRecording();
+}
+
+void MainWindow::ensureVoiceServiceThenStartRecording()
+{
+    voicePendingStartRecording_ = true;
+    voiceServiceHealthAttempts_ = 0;
+    voice_record_button->setEnabled(false);
+    voice_record_button->setText(QStringLiteral("检查服务"));
+    showFeedback(QStringLiteral("正在检查本地语音服务。"));
+    requestVoiceServiceHealthCheck(true);
+}
+
+void MainWindow::beginVoiceRecording()
+{
+    cleanupVoiceRecordingFile();
+    voiceRecordingPath_ = makeVoiceRecordingPath();
+    voiceRecordingStopping_ = false;
+    voice_record_button->setEnabled(false);
+    voice_record_button->setText(QStringLiteral("启动中"));
+
+    const QStringList arguments = {
+        QStringLiteral("--format=S16_LE"),
+        QStringLiteral("--rate=16000"),
+        QStringLiteral("--channels=1"),
+        voiceRecordingPath_,
+    };
+    voiceRecordingProcess->start(QStringLiteral("arecord"), arguments);
+}
+
+void MainWindow::requestVoiceServiceHealthCheck(bool allowStart)
+{
+    QNetworkRequest request(QUrl(QStringLiteral("%1/health").arg(kVoiceServiceBaseUrl)));
+    QNetworkReply* reply = voiceNetworkManager->get(request);
+    QTimer::singleShot(kVoiceHealthTimeoutMs, reply, [reply]() {
+        if (reply->isRunning()) {
+            reply->abort();
+        }
+    });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, allowStart]() {
+        handleVoiceServiceHealthReply(reply, allowStart);
+        reply->deleteLater();
+    });
+}
+
+void MainWindow::handleVoiceServiceHealthReply(QNetworkReply* reply, bool allowStart)
+{
+    const int httpStatus =
+        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QByteArray body = reply->readAll();
+
+    if (reply->error() == QNetworkReply::NoError && httpStatus == 200) {
+        const QJsonDocument document = QJsonDocument::fromJson(body);
+        const QJsonObject object = document.object();
+        const bool sttAvailable =
+            object.value(QStringLiteral("stt_available")).toBool(
+                object.value(QStringLiteral("whisper_loaded")).toBool(false));
+        const bool parseTaskAvailable =
+            object.value(QStringLiteral("parse_task_available")).toBool(
+                object.value(QStringLiteral("deepseek_key_configured")).toBool(false));
+
+        if (!sttAvailable) {
+            voiceServiceReady_ = false;
+            failVoiceServiceStartup(
+                QStringLiteral("语音服务已启动，但 Whisper 模型未加载成功。"));
+            return;
+        }
+        if (!parseTaskAvailable) {
+            voiceServiceReady_ = false;
+            failVoiceServiceStartup(
+                QStringLiteral("语音服务已启动，但未配置 DEEPSEEK_API_KEY，无法解析任务字段。"));
+            return;
+        }
+
+        voiceServiceReady_ = true;
+        voiceServiceStarting_ = false;
+        if (voicePendingStartRecording_) {
+            voicePendingStartRecording_ = false;
+            beginVoiceRecording();
+        }
+        return;
+    }
+
+    voiceServiceReady_ = false;
+    if (allowStart && voiceServiceProcess->state() == QProcess::NotRunning) {
+        startVoiceServiceProcess();
+        return;
+    }
+
+    if (voiceServiceProcess->state() != QProcess::NotRunning &&
+        voiceServiceHealthAttempts_ < kVoiceServiceMaxHealthAttempts) {
+        scheduleVoiceServiceHealthRetry();
+        return;
+    }
+
+    failVoiceServiceStartup(QStringLiteral("本地语音服务不可用，请检查 Python 环境。"));
+}
+
+void MainWindow::startVoiceServiceProcess()
+{
+    const QString serviceDirectory = voiceServiceDirectory();
+    if (serviceDirectory.isEmpty()) {
+        failVoiceServiceStartup(QStringLiteral("找不到 voice_service/app.py。"));
+        return;
+    }
+
+    const QString pythonExecutable = voiceServicePythonExecutable(serviceDirectory);
+    const QStringList arguments = {
+        QStringLiteral("-m"),
+        QStringLiteral("uvicorn"),
+        QStringLiteral("app:app"),
+        QStringLiteral("--host"),
+        QStringLiteral("127.0.0.1"),
+        QStringLiteral("--port"),
+        QStringLiteral("8765"),
+    };
+
+    voiceServiceOwnedProcess_ = true;
+    voiceServiceStarting_ = true;
+    voiceServiceProcess->setWorkingDirectory(serviceDirectory);
+    voiceServiceProcess->setProgram(pythonExecutable);
+    voiceServiceProcess->setArguments(arguments);
+    voiceServiceProcess->start();
+
+    voice_record_button->setText(QStringLiteral("启动服务"));
+    showFeedback(QStringLiteral("正在启动本地语音服务，首次使用 small 模型可能需要下载。"));
+}
+
+void MainWindow::onVoiceServiceStarted()
+{
+    voiceServiceHealthAttempts_ = 0;
+    QTimer::singleShot(kVoiceHealthRetryIntervalMs, this, [this]() {
+        if (voiceServiceStarting_) {
+            requestVoiceServiceHealthCheck(false);
+        }
+    });
+}
+
+void MainWindow::scheduleVoiceServiceHealthRetry()
+{
+    ++voiceServiceHealthAttempts_;
+    voice_record_button->setText(QStringLiteral("加载模型"));
+    QTimer::singleShot(kVoiceHealthRetryIntervalMs, this, [this]() {
+        if (voiceServiceStarting_) {
+            requestVoiceServiceHealthCheck(false);
+        }
+    });
+}
+
+void MainWindow::onVoiceServiceFinished(int exitCode, int exitStatus)
+{
+    Q_UNUSED(exitStatus);
+    voiceServiceReady_ = false;
+    voiceServiceStarting_ = false;
+
+    if (voicePendingStartRecording_) {
+        const QString output = QString::fromUtf8(voiceServiceProcess->readAll()).trimmed();
+        const QString suffix = output.isEmpty()
+            ? QString()
+            : QStringLiteral("：%1").arg(output.left(180));
+        failVoiceServiceStartup(
+            QStringLiteral("语音服务启动失败，退出码 %1%2").arg(exitCode).arg(suffix));
+    }
+}
+
+void MainWindow::onVoiceServiceError()
+{
+    voiceServiceReady_ = false;
+    voiceServiceStarting_ = false;
+    if (voicePendingStartRecording_) {
+        failVoiceServiceStartup(QStringLiteral("无法启动本地语音服务。"));
+    }
+}
+
+void MainWindow::failVoiceServiceStartup(const QString& message)
+{
+    voicePendingStartRecording_ = false;
+    voiceServiceStarting_ = false;
+    resetVoiceRecordingUi();
+    showFeedback(message, "error");
+}
+
+QString MainWindow::voiceServiceDirectory() const
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QStringList candidates = {
+        QDir(appDir).absoluteFilePath(QStringLiteral("../voice_service")),
+        QDir::current().absoluteFilePath(QStringLiteral("voice_service")),
+        QDir::current().absoluteFilePath(QStringLiteral("../voice_service")),
+    };
+
+    for (const QString& candidate : candidates) {
+        const QDir directory(candidate);
+        if (QFileInfo(directory.filePath(QStringLiteral("app.py"))).isFile()) {
+            const QString canonical = directory.canonicalPath();
+            return canonical.isEmpty() ? QDir::cleanPath(candidate) : canonical;
+        }
+    }
+    return {};
+}
+
+QString MainWindow::voiceServicePythonExecutable(const QString& serviceDirectory) const
+{
+    const QString venvPython =
+        QDir(serviceDirectory).filePath(QStringLiteral(".venv/bin/python"));
+    const QFileInfo venvPythonInfo(venvPython);
+    if (venvPythonInfo.isFile() && venvPythonInfo.isExecutable()) {
+        return venvPython;
+    }
+    return QStringLiteral("python3");
+}
+
+void MainWindow::onVoiceRecorderStarted()
+{
+    voiceRecordingActive_ = true;
+    voice_record_button->setEnabled(true);
+    voice_record_button->setText(QStringLiteral("停止录音"));
+    voiceRecordingTimer->start(30000);
+    showFeedback(QStringLiteral("录音中。"));
+}
+
+void MainWindow::stopVoiceRecording(bool reachedTimeLimit)
+{
+    if (!voiceRecordingActive_ && voiceRecordingProcess->state() == QProcess::NotRunning) {
+        return;
+    }
+
+    voiceRecordingTimer->stop();
+    voiceRecordingStopping_ = true;
+    voice_record_button->setEnabled(false);
+    voice_record_button->setText(QStringLiteral("正在停止"));
+
+    const qint64 processId = voiceRecordingProcess->processId();
+    if (processId > 0) {
+        kill(static_cast<pid_t>(processId), SIGINT);
+    } else {
+        voiceRecordingProcess->terminate();
+    }
+
+    if (reachedTimeLimit) {
+        showFeedback(QStringLiteral("录音达到 30 秒上限，正在停止。"));
+    }
+}
+
+void MainWindow::onVoiceRecorderFinished(int exitCode, int exitStatus)
+{
+    voiceRecordingTimer->stop();
+    const bool stoppedBySignal = exitStatus == static_cast<int>(QProcess::CrashExit);
+    const bool processOk = exitCode == 0 || stoppedBySignal;
+    const QFileInfo recordingInfo(voiceRecordingPath_);
+    const bool hasUsableRecording =
+        recordingInfo.exists() && recordingInfo.isFile() && recordingInfo.size() > 44;
+
+    if (!processOk && !hasUsableRecording) {
+        cleanupVoiceRecordingFile();
+        resetVoiceRecordingUi();
+        showFeedback(QStringLiteral("录音失败，请检查麦克风是否可用。"), "error");
+        return;
+    }
+
+    if (!hasUsableRecording) {
+        cleanupVoiceRecordingFile();
+        resetVoiceRecordingUi();
+        showFeedback(QStringLiteral("录音文件不可用，请重试。"), "error");
+        return;
+    }
+
+    voiceRecordingActive_ = false;
+    voiceRecordingStopping_ = false;
+    voiceTranscriptionActive_ = true;
+    voice_record_button->setEnabled(false);
+    voice_record_button->setText(QStringLiteral("识别中"));
+    showFeedback(QStringLiteral("录音已完成，正在识别。"));
+    requestVoiceTranscription(voiceRecordingPath_);
+}
+
+void MainWindow::onVoiceRecorderError()
+{
+    if (voiceRecordingStopping_) {
+        return;
+    }
+    voiceRecordingTimer->stop();
+    cleanupVoiceRecordingFile();
+    resetVoiceRecordingUi();
+    showFeedback(QStringLiteral("无法启动 arecord，请安装 alsa-utils 并检查麦克风。"), "error");
+}
+
+void MainWindow::requestVoiceTranscription(const QString& audioPath)
+{
+    auto* audioFile = new QFile(audioPath);
+    if (!audioFile->open(QIODevice::ReadOnly)) {
+        delete audioFile;
+        cleanupVoiceRecordingFile();
+        resetVoiceRecordingUi();
+        showFeedback(QStringLiteral("无法读取录音文件，请重试。"), "error");
+        return;
+    }
+
+    auto* multipart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+    QHttpPart audioPart;
+    audioPart.setHeader(
+        QNetworkRequest::ContentDispositionHeader,
+        QVariant(QStringLiteral("form-data; name=\"audio\"; filename=\"recording.wav\"")));
+    audioPart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant(QStringLiteral("audio/wav")));
+    audioPart.setBodyDevice(audioFile);
+    audioFile->setParent(multipart);
+    multipart->append(audioPart);
+
+    QNetworkRequest request(QUrl(QStringLiteral("%1/stt").arg(kVoiceServiceBaseUrl)));
+    QNetworkReply* reply = voiceNetworkManager->post(request, multipart);
+    multipart->setParent(reply);
+    QTimer::singleShot(kVoiceSttTimeoutMs, reply, [reply]() {
+        if (reply->isRunning()) {
+            reply->abort();
+        }
+    });
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        handleVoiceTranscriptionReply(reply);
+        reply->deleteLater();
+    });
+}
+
+void MainWindow::handleVoiceTranscriptionReply(QNetworkReply* reply)
+{
+    const int httpStatus =
+        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QByteArray body = reply->readAll();
+
+    cleanupVoiceRecordingFile();
+
+    if (reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300) {
+        voiceServiceReady_ = false;
+        resetVoiceRecordingUi();
+        const QString fallback = reply->error() == QNetworkReply::NoError
+            ? QStringLiteral("语音识别失败。")
+            : reply->errorString();
+        const QString message = QStringLiteral("语音识别失败：%1")
+            .arg(voiceServiceReplyMessage(body, fallback));
+        showFeedback(message, "error");
+        return;
+    }
+
+    QJsonParseError parseError {};
+    const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        resetVoiceRecordingUi();
+        showFeedback(QStringLiteral("语音识别返回了无法解析的数据。"), "error");
+        return;
+    }
+
+    const QString transcript = document.object().value(QStringLiteral("text")).toString().trimmed();
+    if (transcript.isEmpty()) {
+        resetVoiceRecordingUi();
+        showFeedback(QStringLiteral("语音识别没有返回文本，请重试。"), "error");
+        return;
+    }
+
+    voiceTranscriptionActive_ = false;
+    voice_record_button->setText(QStringLiteral("确认文本"));
+    bool accepted = false;
+    const QString confirmedTranscript = QInputDialog::getMultiLineText(
+        this,
+        QStringLiteral("确认识别文本"),
+        QStringLiteral("识别文本"),
+        transcript,
+        &accepted).trimmed();
+
+    if (!accepted) {
+        resetVoiceRecordingUi();
+        Task_input->setText(transcript);
+        Task_input->setFocus();
+        showFeedback(QStringLiteral("语音添加已取消，识别文本已保留在任务名称中。"));
+        return;
+    }
+    if (confirmedTranscript.isEmpty()) {
+        resetVoiceRecordingUi();
+        Task_input->setText(transcript);
+        Task_input->setFocus();
+        showFeedback(QStringLiteral("识别文本不能为空，请手动填写任务。"), "error");
+        return;
+    }
+
+    Task_input->setText(confirmedTranscript);
+    Task_input->setFocus();
+    voiceParsingActive_ = true;
+    voice_record_button->setEnabled(false);
+    voice_record_button->setText(QStringLiteral("解析中"));
+    showFeedback(QStringLiteral("识别完成，正在解析任务字段。"));
+    requestVoiceTaskParsing(confirmedTranscript);
+}
+
+void MainWindow::requestVoiceTaskParsing(const QString& transcript)
+{
+    QJsonObject payload;
+    payload.insert(QStringLiteral("text"), transcript);
+    payload.insert(
+        QStringLiteral("current_datetime"),
+        QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")));
+    payload.insert(
+        QStringLiteral("timezone"),
+        QString::fromUtf8(QTimeZone::systemTimeZoneId()));
+    payload.insert(QStringLiteral("default_priority"), QStringLiteral("medium"));
+    payload.insert(QStringLiteral("default_category"), QStringLiteral("life"));
+
+    QNetworkRequest request(QUrl(QStringLiteral("%1/parse-task").arg(kVoiceServiceBaseUrl)));
+    request.setHeader(
+        QNetworkRequest::ContentTypeHeader,
+        QVariant(QStringLiteral("application/json; charset=utf-8")));
+    request.setRawHeader("Accept", "application/json");
+
+    QNetworkReply* reply = voiceNetworkManager->post(
+        request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    QTimer::singleShot(kVoiceParseTimeoutMs, reply, [reply]() {
+        if (reply->isRunning()) {
+            reply->abort();
+        }
+    });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, transcript]() {
+        handleVoiceTaskParseReply(reply, transcript);
+        reply->deleteLater();
+    });
+}
+
+void MainWindow::handleVoiceTaskParseReply(QNetworkReply* reply, const QString& transcript)
+{
+    const int httpStatus =
+        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QByteArray body = reply->readAll();
+
+    resetVoiceRecordingUi();
+
+    if (reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300) {
+        const QString fallback = reply->error() == QNetworkReply::NoError
+            ? QStringLiteral("任务解析失败。")
+            : reply->errorString();
+        const QString message = QStringLiteral("任务解析失败：%1")
+            .arg(voiceServiceReplyMessage(body, fallback));
+        Task_input->setText(transcript);
+        Task_input->setFocus();
+        showFeedback(message, "error");
+        return;
+    }
+
+    QJsonParseError parseError {};
+    const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        Task_input->setText(transcript);
+        Task_input->setFocus();
+        showFeedback(QStringLiteral("任务解析返回了无法解析的数据。"), "error");
+        return;
+    }
+
+    QString message;
+    if (!fillTaskFormFromParsedVoiceTask(document.object(), transcript, message)) {
+        showFeedback(message, "error");
+        return;
+    }
+    showFeedback(message, "success");
+}
+
+bool MainWindow::fillTaskFormFromParsedVoiceTask(const QJsonObject& object,
+                                                 const QString& transcript,
+                                                 QString& message)
+{
+    ParsedTaskData parsedData;
+    if (!parsedTaskDataFromJson(object, transcript, parsedData, message)) {
+        applyPartialVoiceTaskFields(object, transcript);
+        message = QStringLiteral("%1已填入可识别字段，请手动补充。").arg(message);
+        return false;
+    }
+
+    TaskDataValidator validator;
+    const ValidationResult validation = validator.validate(parsedData);
+    if (!validation.success) {
+        applyPartialVoiceTaskFields(object, transcript);
+        const QString missingFields = missingVoiceFieldsText(parsedData.missingFields);
+        if (!missingFields.isEmpty()) {
+            message = QStringLiteral("语音解析结果已填入可识别字段，还需要补充：%1。")
+                .arg(missingFields);
+        } else {
+            message = QStringLiteral("语音解析结果未通过校验：%1。已填入可识别字段，请手动调整。")
+                .arg(QString::fromStdString(validation.message));
+        }
+        return false;
+    }
+
+    const Task& voiceTask = validation.task;
+    const QDateTime startTime =
+        voiceDateTimeFromString(QString::fromStdString(voiceTask.startTime));
+    const QDateTime reminderTime =
+        voiceDateTimeFromString(QString::fromStdString(voiceTask.remindTime));
+    if (!startTime.isValid() || !reminderTime.isValid()) {
+        applyPartialVoiceTaskFields(object, transcript);
+        message = QStringLiteral("语音解析时间无法填入表单，请手动调整。");
+        return false;
+    }
+
+    const qint64 reminderDeltaSeconds = reminderTime.secsTo(startTime);
+    if (reminderDeltaSeconds < 0) {
+        applyPartialVoiceTaskFields(object, transcript);
+        message = QStringLiteral("提醒时间不能晚于开始时间，请手动调整。");
+        return false;
+    }
+
+    const int reminderDays = static_cast<int>(reminderDeltaSeconds / 86400);
+    const int reminderHours = static_cast<int>((reminderDeltaSeconds % 86400) / 3600);
+    const int reminderMinutes = static_cast<int>((reminderDeltaSeconds % 3600) / 60);
+    if (reminderDays > remind_before_day->maximum()) {
+        remind_before_day->setMaximum(reminderDays);
+    }
+
+    task_table->clearSelection();
+    task_table->setCurrentItem(nullptr);
+    Task_input->setText(QString::fromStdString(voiceTask.name));
+    due_time->setDateTime(startTime);
+    selectComboData(priorityCombo, QString::fromStdString(voiceTask.priority));
+    selectComboData(categoryCombo, QString::fromStdString(voiceTask.category));
+    remind_before_day->setValue(reminderDays);
+    remind_before_hour->setValue(reminderHours);
+    remind_before_minute->setValue(reminderMinutes);
+    updateSelectionActions();
+
+    const qint64 startTimestamp = startTime.toSecsSinceEpoch();
+    const bool hasStartConflict = std::any_of(
+        current_user_tasks.begin(), current_user_tasks.end(),
+        [startTimestamp](const task& currentTask) {
+            return static_cast<qint64>(currentTask.get_task_due_time()) == startTimestamp;
+        });
+
+    Task_input->setFocus();
+    leftScroll->ensureWidgetVisible(add_task_button, 0, 18);
+    message = hasStartConflict
+        ? QStringLiteral("语音解析完成，已填入任务表单；开始时间与已有任务冲突，保存前请调整。")
+        : QStringLiteral("语音解析完成，已填入任务表单，请检查后点击添加任务。");
+    return true;
+}
+
+bool MainWindow::applyPartialVoiceTaskFields(const QJsonObject& object,
+                                             const QString& transcript)
+{
+    bool filledAnyField = false;
+    task_table->clearSelection();
+    task_table->setCurrentItem(nullptr);
+
+    const std::optional<QString> title =
+        optionalVoiceString(object, QStringLiteral("title"));
+    if (title.has_value() && !title->isEmpty()) {
+        Task_input->setText(*title);
+        filledAnyField = true;
+    } else if (!transcript.trimmed().isEmpty()) {
+        Task_input->setText(transcript.trimmed());
+        filledAnyField = true;
+    }
+
+    const std::optional<QString> start =
+        optionalVoiceString(object, QStringLiteral("start_time"));
+    if (start.has_value()) {
+        const QDateTime value = voiceDateTimeFromString(*start);
+        if (value.isValid()) {
+            due_time->setDateTime(value);
+            filledAnyField = true;
+        }
+    }
+
+    const std::optional<QString> priority =
+        optionalVoiceString(object, QStringLiteral("priority"));
+    if (priority.has_value() && selectComboDataIfAvailable(priorityCombo, *priority)) {
+        filledAnyField = true;
+    }
+
+    const std::optional<QString> category =
+        optionalVoiceString(object, QStringLiteral("category"));
+    if (category.has_value() && selectComboDataIfAvailable(categoryCombo, *category)) {
+        filledAnyField = true;
+    }
+
+    const std::optional<QString> reminder =
+        optionalVoiceString(object, QStringLiteral("reminder_time"));
+    if (start.has_value() && reminder.has_value()) {
+        const QDateTime startTime = voiceDateTimeFromString(*start);
+        const QDateTime reminderTime = voiceDateTimeFromString(*reminder);
+        if (startTime.isValid() && reminderTime.isValid() && reminderTime <= startTime) {
+            const qint64 deltaSeconds = reminderTime.secsTo(startTime);
+            const int days = static_cast<int>(deltaSeconds / 86400);
+            if (days > remind_before_day->maximum()) {
+                remind_before_day->setMaximum(days);
+            }
+            remind_before_day->setValue(days);
+            remind_before_hour->setValue(static_cast<int>((deltaSeconds % 86400) / 3600));
+            remind_before_minute->setValue(static_cast<int>((deltaSeconds % 3600) / 60));
+            filledAnyField = true;
+        }
+    }
+
+    updateSelectionActions();
+    Task_input->setFocus();
+    leftScroll->ensureWidgetVisible(add_task_button, 0, 18);
+    return filledAnyField;
+}
+
+QString MainWindow::makeVoiceRecordingPath() const
+{
+    const QString timestamp =
+        QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss_zzz"));
+    return QDir::temp().filePath(
+        QStringLiteral("schedule_manager_voice_%1.wav").arg(timestamp));
+}
+
+void MainWindow::resetVoiceRecordingUi()
+{
+    voiceRecordingActive_ = false;
+    voiceRecordingStopping_ = false;
+    voiceTranscriptionActive_ = false;
+    voiceParsingActive_ = false;
+    voice_record_button->setEnabled(true);
+    voice_record_button->setText(QStringLiteral("开始录音"));
+}
+
+void MainWindow::cleanupVoiceRecordingFile()
+{
+    if (!voiceRecordingPath_.isEmpty()) {
+        QFile::remove(voiceRecordingPath_);
+        voiceRecordingPath_.clear();
+    }
+}
+#endif
 
 void MainWindow::on_calendar_date_changed()
 {
@@ -894,6 +1745,25 @@ void MainWindow::confirmLogout()
 void MainWindow::closeEvent(QCloseEvent* event)
 {
     reminderTimer->stop();
+#ifdef ENABLE_VOICE_ASSISTANT
+    if (voiceRecordingProcess != nullptr &&
+        voiceRecordingProcess->state() != QProcess::NotRunning) {
+        const qint64 processId = voiceRecordingProcess->processId();
+        if (processId > 0) {
+            kill(static_cast<pid_t>(processId), SIGINT);
+        }
+        voiceRecordingProcess->kill();
+    }
+    cleanupVoiceRecordingFile();
+    if (voiceServiceOwnedProcess_ && voiceServiceProcess != nullptr &&
+        voiceServiceProcess->state() != QProcess::NotRunning) {
+        voiceServiceProcess->terminate();
+        if (!voiceServiceProcess->waitForFinished(1500)) {
+            voiceServiceProcess->kill();
+            voiceServiceProcess->waitForFinished(500);
+        }
+    }
+#endif
     event->accept();
 }
 

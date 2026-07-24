@@ -1,17 +1,9 @@
 #include "reminder.h"
-#include <iostream>
+
+#include "audio_alert.h"
+
 #include <chrono>
 #include <utility>
-#include<cstdlib>
-
-namespace {
-
-void playReminderSound()
-{
-    system("mpg123 resources/alarm.mp3 >/dev/null 2>&1");
-}
-
-}
 
 Reminder::Reminder(TaskManager& taskManager, ReminderCallback onReminder, ErrorCallback onError)
     : taskManager_(taskManager),
@@ -45,29 +37,22 @@ void Reminder::stop() {
 
 void Reminder::run() {
     while (running_) {
-
         std::vector<Task> reminders;
         std::string message;
-
         if (taskManager_.collectDueReminders(reminders, message)) {
-
-    for (const auto& task : reminders) {
-        if (onReminder_) {
-            onReminder_(task);
-        }
-    }
-
-    if (!reminders.empty()) {
-        playReminderSound();
-    }
-}
-    else if (!message.empty()) {
-
+            for (const auto& task : reminders) {
+                if (onReminder_) {
+                    onReminder_(task);
+                }
+            }
+            if (!reminders.empty()) {
+                AudioAlert::playReminderSoundAsync();
+            }
+        } else if (!message.empty()) {
             if (onError_) {
                 onError_(message);
             }
         }
-
 
         for (int second = 0; second < 10 && running_; ++second) {
             std::this_thread::sleep_for(std::chrono::seconds(1));

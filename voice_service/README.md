@@ -42,11 +42,3 @@ uvicorn app:app --host 127.0.0.1 --port 8765
 
 Keep the service bound to `127.0.0.1`. Do not expose it on `0.0.0.0` for normal local use.
 When the Qt voice feature is enabled, the GUI first checks this local endpoint and starts the service from `.venv/bin/python` if it is not already running.
-
-## Tests
-
-The unit tests use fake Whisper and DeepSeek clients. They do not download model files or call the real DeepSeek API:
-
-```bash
-python3 -m unittest test_stt_service.py test_deepseek_task_parser.py
-```

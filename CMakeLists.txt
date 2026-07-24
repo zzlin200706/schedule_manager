@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(myschedule LANGUAGES CXX)
 
+option(ENABLE_VOICE_ASSISTANT "Enable voice assistant application code" OFF)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -14,6 +16,7 @@ add_library(schedule_core
     src/core/storage.cpp
     src/core/user.cpp
     src/core/reminder.cpp
+    src/core/audio_alert.cpp
 )
 
 target_include_directories(schedule_core PUBLIC src/core)
