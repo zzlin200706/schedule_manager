@@ -77,21 +77,21 @@ int main(int argc, char *argv[])
     }
 
     loadApplicationStyle(app);
-    
+
     MainWindow *mainWindow = nullptr;
-    
-    
+
+
     Login_Window loginWindow(nullptr);
     loginWindow.show();
-    
-    QObject::connect(&loginWindow, &Login_Window::loginSuccessful, 
+
+    QObject::connect(&loginWindow, &Login_Window::loginSuccessful,
                      [&](const QString &username) {
                          if (mainWindow != nullptr) {
                              return;
                          }
 
                          current_user_name= username.toStdString();
-                        
+
                          mainWindow = new MainWindow(tasks, nullptr);
                          QObject::connect(mainWindow, &MainWindow::logoutRequested,
                                           [&]() {
@@ -107,10 +107,10 @@ int main(int argc, char *argv[])
                                               closingWindow->deleteLater();
                                           });
                          mainWindow->show();
-                         
-                         
+
+
                          loginWindow.hide();
                      });
-                     
+
     return app.exec();
 }

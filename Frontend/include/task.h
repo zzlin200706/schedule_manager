@@ -28,8 +28,8 @@ private:
 
     enum {
         One_day_conversion = 24 * 60 * 60,
-        One_hour_conversion = 60 * 60, 
-        One_minute_conversion = 60 
+        One_hour_conversion = 60 * 60,
+        One_minute_conversion = 60
     };
 
 private:
@@ -44,7 +44,7 @@ public:
         int due_year, int due_month, int due_day, int due_hour, int due_minute,
         int remind_before_day = 0, int remind_before_hour = 0, int remind_before_minute = 0, int remind_before_second = 0,
         int id = -1, string priority = "medium", string category = "life", bool reminded = false);
-    
+
     // 获取任务信息
     string get_task_name() const { return task_name; }
     string get_task_priority() const { return task_priority; }
@@ -53,7 +53,7 @@ public:
     time_t get_task_remind_time() const { return task_remind_time; }
     bool get_task_reminded() const { return task_reminded; }
     int get_task_id() const { return task_id; }
-    
+
     bool operator==(const task& other) const {
         //task_id == other.task_id &&
         return task_name == other.task_name &&
@@ -62,11 +62,11 @@ public:
                task_due_time == other.task_due_time &&
                task_remind_time == other.task_remind_time &&
                task_reminded == other.task_reminded;
-    }    
+    }
 
-   
 
-   
+
+
     void show() const;
     ~task(){}
 

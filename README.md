@@ -1,6 +1,6 @@
 # MySchedule 日程管理器
 
-`MySchedule` 是一个面向 Linux、使用 C++17、CMake 和 Qt5 渐进开发的本地日程管理软件。当前分支处于 Step 6，已提供账户、任务管理、完整 CLI、后台提醒、强化的本地持久化能力和 Qt5 图形界面。
+`MySchedule` 是一个面向 Linux、使用 C++17、CMake 和 Qt5 渐进开发的本地日程管理软件。当前分支处于 Step 7，已提供账户、任务管理、完整 CLI、后台提醒、强化的本地持久化能力、Qt5 图形界面和 CLI 音频提醒。
 
 ## 已实现
 
@@ -22,7 +22,8 @@
 - 支持交互式 `run` 登录、首次注册、Shell 风格命令循环和引号任务名；
 - 使用 UTF-8 显示宽度处理中文表格和长任务名截断；
 - 登录后启动后台提醒线程，主线程等待输入时仍可提醒，并在退出时安全停止和 `join`；
-- 提醒触发后会更新并保存 `reminded` 状态，避免重复提醒。
+- 提醒触发后会更新并保存 `reminded` 状态，避免重复提醒；
+- CLI 提醒触发时调用 `mpg123` 播放 `resources/alarm.mp3`。
 - 在任务文件中持久化 `next_id`，删除任意任务或重启程序后均不会复用历史 ID；
 - 账户和任务数据先完整写入临时文件，再通过 `rename` 原子替换正式文件；
 - 添加、修改、删除及提醒状态保存失败时回滚内存状态，且不改变原文件；
@@ -32,7 +33,7 @@
 - Qt 与 CLI 共用 Core，使用相同账户文件、任务文件、ID、时间、排序和唯一性规则；
 - 关闭 Qt 主窗口或退出登录时停止界面提醒定时器。
 
-音频提醒将在 Step 7 合并成员 B 的 CLI 音频 PR，并在 Step 8 下沉到 Core；语音识别将在 Step 8 对齐参考项目。后续安排见 [开发路线图](docs/roadmap.md)。
+当前 Step 7 保留成员 B 的 CLI 音频提醒实现。Step 8 会将音频提醒下沉到 Core，让 CLI 和 Qt 复用同一音频能力，并对齐参考项目的语音识别功能。后续安排见 [开发路线图](docs/roadmap.md)。
 
 ## 项目结构
 
@@ -44,6 +45,8 @@ schedule_manager_new/
 │   └── .gitkeep
 ├── docs/
 │   └── roadmap.md
+├── resources/
+│   └── alarm.mp3
 ├── Frontend/
 │   ├── CMakeLists.txt
 │   ├── include/
@@ -58,10 +61,10 @@ schedule_manager_new/
     │   ├── cli.h
     │   └── main.cpp
     └── core/
-        ├── storage.cpp
-        ├── storage.h
         ├── reminder.cpp
         ├── reminder.h
+        ├── storage.cpp
+        ├── storage.h
         ├── task.cpp
         ├── task.h
         ├── task_manager.cpp
@@ -91,7 +94,9 @@ Qt5 图形界面：
 ```bash
 cmake -S Frontend -B build-qt
 cmake --build build-qt -j
-./ScheduleManagerGUI
+./Frontend/ScheduleManagerGUI
 ```
+
+CLI 音频提醒依赖系统安装 `mpg123`。如果未安装或音频播放失败，提醒流程仍会继续显示文字提示。
 
 本仓库不保留 CTest、Shell 测试、Python 单元测试或其他程序测试内容。

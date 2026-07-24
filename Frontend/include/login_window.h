@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "core_adapter.h"
-#include "task.h" 
+#include "task.h"
 
 // 前向声明
 class Register_Window;
