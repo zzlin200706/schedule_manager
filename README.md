@@ -1,6 +1,6 @@
 # MySchedule 日程管理器
 
-`MySchedule` 是一个面向 Linux、使用 C++17 和 CMake 渐进开发的本地日程管理软件。当前分支处于 Step 5，已提供账户、任务管理、完整 CLI、后台提醒和强化的本地持久化能力。
+`MySchedule` 是一个面向 Linux、使用 C++17、CMake 和 Qt5 渐进开发的本地日程管理软件。当前分支处于 Step 6，已提供账户、任务管理、完整 CLI、后台提醒、强化的本地持久化能力和 Qt5 图形界面。
 
 ## 已实现
 
@@ -8,7 +8,7 @@
 - 提供任务 ID、名称、开始时间、优先级、分类、提醒时间和提醒状态；
 - 提供 `myschedule --help`、`myschedule help` 与 `myschedule run`；
 - 对无参数和未知命令返回错误；
-- 使用 CMake 构建应用和可直接运行的 C++ 测试程序；
+- 使用 CMake 构建 CLI/Core 和 Qt5 图形界面；
 - 忽略构建产物、运行数据、日志和本地配置。
 - 支持用户名注册、正确密码登录和错误密码拒绝；
 - 使用每用户独立 salt 与 salted FNV-1a 保存密码，不保存明文；
@@ -28,8 +28,11 @@
 - 添加、修改、删除及提醒状态保存失败时回滚内存状态，且不改变原文件；
 - 严格拒绝损坏的账户、任务、任务 ID 和 `next_id` 数据，不静默覆盖损坏文件；
 - 无参数或 `run` 参数非法时在账户存储初始化前退出，不创建数据文件。
+- 提供 Qt5 登录、注册、任务列表、任务添加、删除、全字段修改、日期筛选、月份切换、空状态和提醒弹窗；
+- Qt 与 CLI 共用 Core，使用相同账户文件、任务文件、ID、时间、排序和唯一性规则；
+- 关闭 Qt 主窗口或退出登录时停止界面提醒定时器。
 
-Qt5 图形界面尚未实现，将在 Step 6 完成。后续安排见 [开发路线图](docs/roadmap.md)。
+音频提醒将在 Step 7 合并成员 B 的 CLI 音频 PR，并在 Step 8 下沉到 Core；语音识别将在 Step 8 对齐参考项目。后续安排见 [开发路线图](docs/roadmap.md)。
 
 ## 项目结构
 
@@ -41,6 +44,12 @@ schedule_manager_new/
 │   └── .gitkeep
 ├── docs/
 │   └── roadmap.md
+├── Frontend/
+│   ├── CMakeLists.txt
+│   ├── include/
+│   ├── resources/
+│   ├── src/
+│   └── style/
 └── src/
     ├── cli/
     │   ├── app.cpp
@@ -77,12 +86,12 @@ cmake --build build -j
 ./build/myschedule user1 123456 showtask --all
 ```
 
-## 测试
+Qt5 图形界面：
 
 ```bash
-./build/TaskManagerUpdateTest
-bash -n tests/test_cli.sh
-bash tests/test_cli.sh
+cmake -S Frontend -B build-qt
+cmake --build build-qt -j
+./ScheduleManagerGUI
 ```
 
-当前回归覆盖帮助入口、账户注册与登录、salt 隔离、任务增删改查、筛选排序、完整 CLI、交互式 `run`、UTF-8 表格、后台提醒、ID 持久化、原子保存、失败回滚和损坏文件拒绝。C++ 测试程序由 CMake 构建后直接运行。
+本仓库不保留 CTest、Shell 测试、Python 单元测试或其他程序测试内容。

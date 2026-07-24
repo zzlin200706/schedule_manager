@@ -29,9 +29,3 @@ add_executable(myschedule
 target_include_directories(myschedule PRIVATE src/cli)
 target_link_libraries(myschedule PRIVATE schedule_core)
 target_compile_options(myschedule PRIVATE -Wall -Wextra -Wpedantic)
-
-add_executable(TaskManagerUpdateTest
-    tests/test_task_manager_update.cpp
-)
-target_link_libraries(TaskManagerUpdateTest PRIVATE schedule_core)
-target_compile_options(TaskManagerUpdateTest PRIVATE -Wall -Wextra -Wpedantic)
