@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(ScheduleManagerGUI)
 
-option(ENABLE_VOICE_ASSISTANT "Enable voice task assistant" OFF)
+option(ENABLE_VOICE_ASSISTANT "Enable voice task assistant" ON)
 
 # 设置C++标准
 set(CMAKE_CXX_STANDARD 17)

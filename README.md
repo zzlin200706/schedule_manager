@@ -26,9 +26,9 @@ Qt GUI：
 - 显示分类、优先级、开始时间和提醒时间；
 - 使用日历按日期筛选任务；
 - 主窗口运行时每 10 秒检查一次提醒，通过非模态弹窗提示、异步播放提醒音频，并持久化 `reminded` 状态；
-- 启用语音助手后显示录音入口，支持录音、识别文本确认、DeepSeek 字段解析和任务表单回填。
+- 默认启用语音助手并显示录音入口，支持录音、识别文本确认、DeepSeek 字段解析和任务表单回填。
 
-语音功能通过构建选项启用。启用后 Qt 使用 `arecord` 录制本地 WAV，通过 `voice_service/` 中的 FastAPI 服务调用 `faster-whisper` 完成语音识别，再由 DeepSeek 提取任务名称、开始时间、优先级、分类和提醒时间。解析结果经 C++ 侧校验后填入现有任务表单，最终由用户点击原有添加按钮保存。
+语音功能默认通过构建选项启用。启用后 Qt 使用 `arecord` 录制本地 WAV，通过 `voice_service/` 中的 FastAPI 服务调用 `faster-whisper` 完成语音识别，再由 DeepSeek 提取任务名称、开始时间、优先级、分类和提醒时间。解析结果经 C++ 侧校验后填入现有任务表单，最终由用户点击原有添加按钮保存。
 
 CLI 和 Qt 共用 `src/core/audio_alert.*` 播放提醒音频，固定使用仓库根目录的 `resources/alarm.mp3`。播放在后台线程执行，带有单次播放保护；一轮扫描发现多个到期任务时统一播放一次。文字/弹窗提醒和 `reminded` 状态持久化独立于音频播放结果。
 
@@ -108,11 +108,13 @@ cmake --build Frontend/build -j
 
 Qt 工程将程序输出为 `Frontend/ScheduleManagerGUI`。
 
-### 启用语音助手的 Qt GUI
+### 关闭语音助手的 Qt GUI
+
+Qt GUI 默认启用语音助手。没有 Qt Network 或不需要语音功能时：
 
 ```bash
-cmake -S Frontend -B Frontend/build-voice -DENABLE_VOICE_ASSISTANT=ON
-cmake --build Frontend/build-voice -j
+cmake -S Frontend -B Frontend/build -DENABLE_VOICE_ASSISTANT=OFF
+cmake --build Frontend/build -j
 ```
 
 本地 Voice AI Service 默认绑定本机：
@@ -194,7 +196,7 @@ CLI 的 `run` 交互模式会启动提醒线程，直接命令聚焦单次增删
 
 GUI 的注册、登录、任务读取、添加、修改、删除和提醒检查均通过 `CoreAdapter` 调用 `src/core/`。有到期提醒时，GUI 会显示非模态弹窗并通过 Core 异步播放提醒音频。GUI 提醒随主窗口生命周期运行。
 
-启用语音助手后，任务输入区会出现录音按钮。录音完成后，GUI 会把 WAV 上传到本地服务，显示识别文本供用户确认，再请求 DeepSeek 解析任务字段。合法结果会填入表单；保存仍由用户点击添加按钮完成。
+默认启用语音助手后，任务输入区会出现录音按钮。录音完成后，GUI 会把 WAV 上传到本地服务，显示识别文本供用户确认，再请求 DeepSeek 解析任务字段。合法结果会填入表单；保存仍由用户点击添加按钮完成。
 
 ## 数据文件
 

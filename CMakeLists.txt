@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(myschedule LANGUAGES CXX)
 
-option(ENABLE_VOICE_ASSISTANT "Enable voice assistant application code" OFF)
+option(ENABLE_VOICE_ASSISTANT "Enable voice assistant application code" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

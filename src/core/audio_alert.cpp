@@ -11,13 +11,78 @@ namespace {
 constexpr const char* kReminderSoundPath = "resources/alarm.mp3";
 std::atomic_bool playbackInProgress {false};
 
+bool isReminderSoundFile(const std::filesystem::path& path)
+{
+    std::error_code error;
+    return std::filesystem::is_regular_file(path, error);
+}
+
+std::filesystem::path executableDirectory()
+{
+    std::error_code error;
+    const std::filesystem::path executablePath =
+        std::filesystem::read_symlink("/proc/self/exe", error);
+    if (error || executablePath.empty()) {
+        return {};
+    }
+    return executablePath.parent_path();
+}
+
+std::filesystem::path findReminderSoundPath()
+{
+    const std::filesystem::path relativeSoundPath(kReminderSoundPath);
+
+    if (isReminderSoundFile(relativeSoundPath)) {
+        return relativeSoundPath;
+    }
+
+    std::error_code error;
+    const std::filesystem::path currentPath = std::filesystem::current_path(error);
+    if (!error && !currentPath.empty()) {
+        const std::filesystem::path fromParent = currentPath.parent_path() / relativeSoundPath;
+        if (isReminderSoundFile(fromParent)) {
+            return fromParent;
+        }
+    }
+
+    const std::filesystem::path executablePath = executableDirectory();
+    if (!executablePath.empty()) {
+        const std::filesystem::path fromExecutable = executablePath / relativeSoundPath;
+        if (isReminderSoundFile(fromExecutable)) {
+            return fromExecutable;
+        }
+
+        const std::filesystem::path fromExecutableParent =
+            executablePath.parent_path() / relativeSoundPath;
+        if (isReminderSoundFile(fromExecutableParent)) {
+            return fromExecutableParent;
+        }
+    }
+
+    return relativeSoundPath;
+}
+
+std::string shellQuote(const std::string& value)
+{
+    std::string quoted = "'";
+    for (const char character : value) {
+        if (character == '\'') {
+            quoted += "'\\''";
+        } else {
+            quoted += character;
+        }
+    }
+    quoted += "'";
+    return quoted;
+}
+
 }
 
 namespace AudioAlert {
 
 const std::string& reminderSoundPath()
 {
-    static const std::string path = kReminderSoundPath;
+    static const std::string path = findReminderSoundPath().string();
     return path;
 }
 
@@ -42,7 +107,9 @@ bool playReminderSoundBlocking(std::string& message)
     if (!canPlayReminderSound(message)) {
         return false;
     }
-    if (std::system("mpg123 resources/alarm.mp3 >/dev/null 2>&1") != 0) {
+    const std::string command =
+        "mpg123 " + shellQuote(reminderSoundPath()) + " >/dev/null 2>&1";
+    if (std::system(command.c_str()) != 0) {
         message = "Failed to play reminder sound.";
         return false;
     }
