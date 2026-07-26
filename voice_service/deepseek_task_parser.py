@@ -1,5 +1,13 @@
 """DeepSeek task parser service boundary."""
 
+# 文件职责：
+# 本文件封装 DeepSeek API 调用。它把语音识别后的自然语言文本组织成
+# chat/completions 请求，并校验模型返回的任务 JSON 字段。
+#
+# 主要功能定位：
+# - 功能：解析语音任务信息
+# - 调用 DeepSeek API 解析任务名称、开始时间、提醒时间、优先级和分类
+
 from __future__ import annotations
 
 import json
@@ -17,6 +25,7 @@ HTTP_CLIENT_FACTORY = Callable[[], Any]
 MAX_MODEL_CONTENT_CHARS = 4096
 
 
+# DeepSeek 任务字段解析器，只负责远程请求和响应校验。
 class DeepSeekTaskParser:
     def __init__(
         self,
@@ -27,6 +36,8 @@ class DeepSeekTaskParser:
         self._client_factory = client_factory
 
     async def parse(self, request: ParseTaskRequest) -> ParsedTaskResponse:
+        # ==================== 功能：解析语音任务信息 ====================
+        # 步骤 1：确认 API Key 已配置，并拒绝空文本。
         if not self._settings.deepseek_key_configured:
             raise VoiceServiceError(
                 503,
@@ -43,6 +54,7 @@ class DeepSeekTaskParser:
 
         payload = self._build_request_payload(request)
         try:
+            # 步骤 2：调用 DeepSeek chat/completions，请求模型只返回 JSON。
             async with self._make_client() as client:
                 response = await client.post(
                     self._chat_completions_url(),
@@ -68,6 +80,7 @@ class DeepSeekTaskParser:
                 "Failed to connect to DeepSeek API.",
             ) from error
 
+        # 步骤 3：处理 HTTP 状态、解析响应 JSON，并提取 message.content。
         if response.status_code < 200 or response.status_code >= 300:
             self._raise_for_remote_status(response.status_code)
 
@@ -89,6 +102,7 @@ class DeepSeekTaskParser:
             )
 
         try:
+            # 步骤 4：模型内容必须是 JSON 对象，再交给 Pydantic 校验字段类型。
             parsed_json = json.loads(content)
         except json.JSONDecodeError as error:
             raise VoiceServiceError(
@@ -114,6 +128,7 @@ class DeepSeekTaskParser:
             ) from error
 
     def _build_request_payload(self, request: ParseTaskRequest) -> dict[str, Any]:
+        # 请求中包含当前时间和默认值，方便模型解析“今天/明天”等相对时间。
         return {
             "model": self._settings.deepseek_model,
             "messages": [
@@ -137,6 +152,7 @@ class DeepSeekTaskParser:
         }
 
     def _system_prompt(self, request: ParseTaskRequest) -> str:
+        # 系统提示词约束模型只输出固定 JSON 结构，缺失字段显式放入 missing_fields。
         return f"""你是日程管理软件中的任务信息提取器。
 
 你的唯一职责是把用户的自然语言转换为 JSON。
@@ -193,6 +209,7 @@ class DeepSeekTaskParser:
         return self._settings.deepseek_base_url.rstrip("/") + "/chat/completions"
 
     def _headers(self) -> dict[str, str]:
+        # API Key 只从环境配置读取并放入请求头，注释和日志中不输出真实 Key。
         return {
             "Authorization": "Bearer " + self._settings.deepseek_api_key,
             "Content-Type": "application/json",
@@ -278,6 +295,7 @@ class DeepSeekTaskParser:
 
 
 def _validate_parsed_task_response(data: dict[str, Any]) -> ParsedTaskResponse:
+    # 兼容 Pydantic v1/v2 的校验入口，保持服务返回结构一致。
     validator = getattr(ParsedTaskResponse, "model_validate", None)
     if validator is not None:
         return validator(data)

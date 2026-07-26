@@ -1,6 +1,12 @@
 #ifndef MYSCHEDULE_TIME_UTILS_H
 #define MYSCHEDULE_TIME_UTILS_H
 
+/*
+ * 文件职责：
+ * 声明日期时间解析、日期/月筛选、字符串裁剪和 CLI 命令分词工具。
+ * 这些工具服务于任务校验、排序、查询和交互式命令解析。
+ */
+
 #include <ctime>
 #include <optional>
 #include <string>

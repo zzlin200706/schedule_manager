@@ -1,5 +1,15 @@
 #include "register_window.h"
 
+/*
+ * 文件职责：
+ * 实现 Qt 注册对话框。用户输入用户名、密码和确认密码后，
+ * 通过 CoreAdapter 调用核心层 UserManager::registerUser。
+ *
+ * 主要功能定位：
+ * - 功能：Qt 注册界面
+ * - 功能：用户注册
+ */
+
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
@@ -23,6 +33,8 @@ void addCardShadow(QWidget* widget)
 Register_Window::Register_Window(QWidget* parent)
     : QDialog(parent)
 {
+    // ==================== 功能：Qt 注册界面 ====================
+    // 构造函数创建注册表单，并把“注册/返回登录”按钮连接到对应槽。
     setWindowTitle(QStringLiteral("注册账号 — 日程管理器"));
     setMinimumSize(520, 680);
     resize(560, 720);
@@ -134,6 +146,7 @@ QString Register_Window::registeredUsername() const
 
 void Register_Window::onRegisterClicked()
 {
+    // 步骤 1：从输入框读取用户名和两次密码，先在界面层检查空值和一致性。
     const QString username = usernameEdit->text().trimmed();
     const QString password1 = passwordEdit1->text();
     const QString password2 = passwordEdit2->text();
@@ -161,6 +174,7 @@ void Register_Window::onRegisterClicked()
     }
 
     QString message;
+    // 步骤 2：调用适配层注册；盐值生成、密码哈希和 users.txt 保存都在核心层完成。
     if (!coreAdapter_.registerUser(username, password1, message)) {
         showError(message.isEmpty() ? QStringLiteral("注册失败，请检查输入。") : message);
         return;

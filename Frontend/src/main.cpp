@@ -1,3 +1,13 @@
+/*
+ * 文件职责：
+ * Qt GUI 程序入口。负责创建 QApplication、加载界面字体和 QSS，
+ * 显示登录窗口，并在登录成功后切换到主窗口。
+ *
+ * 主要功能定位：
+ * - 功能：程序入口
+ * - 登录成功后进入 Qt 主界面
+ */
+
 #include <QApplication>
 #include <QByteArray>
 #include <QCoreApplication>
@@ -49,6 +59,7 @@ void loadApplicationStyle(QApplication& app)
 }
 }
 
+// ==================== 功能：程序入口 ====================
 int main(int argc, char *argv[])
 {
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
@@ -86,6 +97,7 @@ int main(int argc, char *argv[])
 
     QObject::connect(&loginWindow, &Login_Window::loginSuccessful,
                      [&](const QString &username) {
+                         // 登录/注册窗口发出成功信号后，保存当前用户名并创建主界面。
                          if (mainWindow != nullptr) {
                              return;
                          }

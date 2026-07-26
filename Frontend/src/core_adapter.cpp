@@ -1,5 +1,15 @@
 #include "core_adapter.h"
 
+/*
+ * 文件职责：
+ * 实现 Qt GUI 到核心层的调用适配，包括 QString/std::string 转换、
+ * GUI task/Core Task 转换，以及用户和任务接口的转发。
+ *
+ * 主要功能定位：
+ * - 功能：Qt 核心层适配
+ * - Qt 登录/注册/任务管理最终从这里进入核心层
+ */
+
 #include "../../src/core/task_manager.h"
 #include "../../src/core/time_utils.h"
 #include "../../src/core/user.h"
@@ -13,6 +23,7 @@
 namespace {
 std::string toStdString(const QString& value)
 {
+    // Qt 输入进入核心层前统一 trim，避免用户名和文本字段带首尾空白。
     return value.trimmed().toStdString();
 }
 
@@ -46,6 +57,7 @@ QString toCoreDateTimeString(time_t value, QString& errorMessage)
 
 task coreTaskToGuiTask(const Task& coreTask, QString& errorMessage)
 {
+    // 核心层时间是 "YYYY-MM-DD HH:MM"，Qt 任务模型用 epoch seconds 展示。
     time_t dueTime = 0;
     if (!toEpochSeconds(coreTask.startTime, dueTime)) {
         errorMessage = QStringLiteral("任务时间格式无法转换: %1")
@@ -73,6 +85,7 @@ task coreTaskToGuiTask(const Task& coreTask, QString& errorMessage)
 
 bool guiTaskToCoreTask(const task& guiTask, Task& coreTask, QString& errorMessage)
 {
+    // GUI 的 due/remind time 转回核心层固定字符串格式，便于复用核心校验和存储。
     const QString startTime = toCoreDateTimeString(guiTask.get_task_due_time(), errorMessage);
     if (!errorMessage.isEmpty()) {
         return false;
@@ -98,8 +111,10 @@ bool guiTaskToCoreTask(const task& guiTask, Task& coreTask, QString& errorMessag
 }
 }
 
+// ==================== 功能：Qt 核心层适配 ====================
 CoreAdapter::LoginResult CoreAdapter::login(const QString& username, const QString& password)
 {
+    // 登录转发到 UserManager；这里把核心层英文错误映射为 GUI 需要的中文状态。
     const std::string user = toStdString(username);
     const std::string pass = password.toStdString();
 
@@ -125,6 +140,7 @@ CoreAdapter::LoginResult CoreAdapter::login(const QString& username, const QStri
 
 bool CoreAdapter::registerUser(const QString& username, const QString& password, QString& message)
 {
+    // 注册转发到核心层，密码哈希和用户文件保存均由 UserManager/Storage 完成。
     UserManager userManager;
     std::string coreMessage;
     const bool ok = userManager.registerUser(toStdString(username), password.toStdString(), coreMessage);
@@ -140,6 +156,7 @@ bool CoreAdapter::userExists(const QString& username)
 
 bool CoreAdapter::loadTasks(const QString& username, std::vector<task>& tasks, QString& message)
 {
+    // 加载任务：TaskManager 读取核心任务，再逐条转换成 GUI task 供表格展示。
     TaskManager taskManager(toStdString(username));
     std::string coreMessage;
     if (!taskManager.load(coreMessage)) {
@@ -167,6 +184,7 @@ bool CoreAdapter::loadTasks(const QString& username, std::vector<task>& tasks, Q
 
 bool CoreAdapter::addTask(const QString& username, const task& guiTask, QString& message)
 {
+    // 添加任务：GUI task -> Core Task -> TaskManager::addTask。
     TaskManager taskManager(toStdString(username));
     std::string coreMessage;
     if (!taskManager.load(coreMessage)) {
@@ -192,6 +210,7 @@ bool CoreAdapter::addTask(const QString& username, const task& guiTask, QString&
 
 bool CoreAdapter::updateTask(const QString& username, int taskId, const task& guiTask, QString& message)
 {
+    // 修改任务：保留界面选中的真实 taskId，由核心层检查冲突并保存。
     TaskManager taskManager(toStdString(username));
     std::string coreMessage;
     if (!taskManager.load(coreMessage)) {
@@ -218,6 +237,7 @@ bool CoreAdapter::updateTask(const QString& username, int taskId, const task& gu
 
 bool CoreAdapter::deleteTask(const QString& username, int taskId, QString& message)
 {
+    // 删除任务：界面只传 ID，核心层负责查找、删除、保存和失败回滚。
     TaskManager taskManager(toStdString(username));
     std::string coreMessage;
     if (!taskManager.load(coreMessage)) {
@@ -236,6 +256,7 @@ bool CoreAdapter::deleteTask(const QString& username, int taskId, QString& messa
 
 bool CoreAdapter::collectDueReminders(const QString& username, std::vector<task>& reminders, QString& message)
 {
+    // Qt 提醒轮询复用核心层 collectDueReminders，再把到期任务转为 GUI task。
     TaskManager taskManager(toStdString(username));
     std::string coreMessage;
     if (!taskManager.load(coreMessage)) {

@@ -1,5 +1,15 @@
 #include "cli.h"
 
+/*
+ * 文件职责：
+ * 实现 CLI 帮助信息、任务表格输出、密码无回显读取，以及 add/update/show/delete
+ * 命令参数解析。解析完成后的业务动作由 app.cpp 分发到核心层。
+ *
+ * 主要功能定位：
+ * - 功能：CLI 命令分发
+ * - addtask/updatetask/showtask/deltask 参数转换
+ */
+
 #include "time_utils.h"
 
 #include <algorithm>
@@ -33,6 +43,7 @@ constexpr TableColumn kTaskColumns[] = {
 };
 
 int utf8DisplayWidth(const std::string& value) {
+    // 计算终端显示宽度，避免中文任务名在表格中错位。
     std::mbstate_t state {};
     int width = 0;
     const char* ptr = value.data();
@@ -62,6 +73,7 @@ int utf8DisplayWidth(const std::string& value) {
 }
 
 std::string truncateUtf8ToWidth(const std::string& value, int maxWidth) {
+    // 按显示宽度截断，而不是按字节截断，避免截断到 UTF-8 字符中间。
     constexpr const char* ellipsis = "...";
     constexpr int ellipsisWidth = 3;
 
@@ -130,6 +142,7 @@ public:
     TerminalEchoGuard() = default;
 
     bool disable() {
+        // 用 RAII 管理终端回显，readPassword 返回后析构函数会恢复原设置。
         if (!isatty(STDIN_FILENO)) {
             return false;
         }
@@ -259,6 +272,7 @@ std::string CLI::readPassword(const std::string& prompt) {
     return password;
 }
 
+// ==================== 功能：查看全部任务 ====================
 void CLI::printTasks(const std::vector<Task>& tasks, std::ostream& output) {
     std::setlocale(LC_CTYPE, "");
     if (tasks.empty()) {
@@ -287,6 +301,7 @@ void CLI::printTasks(const std::vector<Task>& tasks, std::ostream& output) {
 }
 
 bool CLI::parseAddTaskArgs(const std::vector<std::string>& args, Task& task, std::string& errorMessage) {
+    // 将 addtask 命令选项转换为核心层 Task；默认值与核心层保持一致。
     for (std::size_t index = 0; index < args.size(); ++index) {
         const std::string& arg = args[index];
         if (arg == "--name" || arg == "--start" || arg == "--priority" || arg == "--category" || arg == "--remind") {
@@ -330,6 +345,7 @@ bool CLI::parseAddTaskArgs(const std::vector<std::string>& args, Task& task, std
 }
 
 bool CLI::parseUpdateTaskArgs(const std::vector<std::string>& args, UpdateTaskOptions& options, std::string& errorMessage) {
+    // 只记录用户提供的字段，App 会先读取原任务再覆盖这些字段。
     bool hasId = false;
     for (std::size_t index = 0; index < args.size(); ++index) {
         const std::string& arg = args[index];
@@ -397,6 +413,7 @@ bool CLI::parseUpdateTaskArgs(const std::vector<std::string>& args, UpdateTaskOp
 }
 
 bool CLI::parseShowTaskArgs(const std::vector<std::string>& args, std::string& mode, std::string& value, std::string& errorMessage) {
+    // showtask 支持三种查询模式：全部、某天、某月。
     if (args.size() == 1U && args[0] == "--all") {
         mode = "all";
         value.clear();
@@ -426,6 +443,7 @@ bool CLI::parseShowTaskArgs(const std::vector<std::string>& args, std::string& m
 }
 
 bool CLI::parseDeleteTaskArgs(const std::vector<std::string>& args, int& taskId, std::string& errorMessage) {
+    // deltask 兼容 “deltask ID” 和 “deltask --id ID” 两种写法。
     const std::string* idValue = nullptr;
     if (args.size() == 1U) {
         idValue = &args[0];
@@ -444,6 +462,7 @@ bool CLI::parseDeleteTaskArgs(const std::vector<std::string>& args, int& taskId,
 }
 
 bool CLI::promptForTask(Task& task, std::string& errorMessage) {
+    // 交互式 addtask 的字段采集入口；返回前复用核心任务字段校验。
     std::cout << "Task name: ";
     std::getline(std::cin, task.name);
     task.name = trim(task.name);

@@ -1,5 +1,15 @@
 #include "login_window.h"
 
+/*
+ * 文件职责：
+ * 实现 Qt 登录窗口，包括用户名/密码输入、登录按钮处理、注册窗口打开，
+ * 以及登录成功后加载当前用户任务。
+ *
+ * 主要功能定位：
+ * - 功能：Qt 登录界面
+ * - 功能：Qt 注册界面
+ */
+
 #include "register_window.h"
 
 #include <QFrame>
@@ -17,6 +27,8 @@ extern std::vector<task> tasks;
 Login_Window::Login_Window(QWidget* parent)
     : QMainWindow(parent)
 {
+    // ==================== 功能：Qt 登录界面 ====================
+    // 构造函数初始化登录界面控件，并把按钮点击/回车信号连接到槽函数。
     setWindowTitle(QStringLiteral("我的日程 — 日程管理器"));
     setMinimumSize(520, 630);
     resize(560, 680);
@@ -137,6 +149,7 @@ void Login_Window::resetForm()
 
 void Login_Window::onLoginClicked()
 {
+    // 步骤 1：读取 Qt 输入框中的用户名和密码，先做界面层非空校验。
     if (loginInProgress_) {
         return;
     }
@@ -162,9 +175,11 @@ void Login_Window::onLoginClicked()
 
 void Login_Window::sendLoginData(const QString& username, const QString& password)
 {
+    // 步骤 2：调用适配层登录；适配层会转到核心层 UserManager 验证密码哈希。
     const auto result = coreAdapter_.login(username, password);
     if (result.status == CoreAdapter::LoginStatus::Ok) {
         QString loadMessage;
+        // 步骤 3：登录成功后加载任务到全局 GUI 缓存，随后发信号切换到主界面。
         if (!coreAdapter_.loadTasks(username, tasks, loadMessage)) {
             QMessageBox::warning(this, QStringLiteral("任务加载失败"), loadMessage);
             tasks.clear();
@@ -196,6 +211,8 @@ void Login_Window::sendLoginData(const QString& username, const QString& passwor
 
 void Login_Window::onRegisterClicked()
 {
+    // ==================== 功能：Qt 注册界面 ====================
+    // 登录窗口只负责打开注册对话框；注册细节在 Register_Window 中处理。
     Register_Window registerWindow(this);
     if (registerWindow.exec() != QDialog::Accepted) {
         return;

@@ -1,5 +1,17 @@
 #include "mainwindow.h"
 
+/*
+ * 文件职责：
+ * 实现 Qt 主界面，包括控件布局、任务增删改查、日期筛选、提醒轮询、
+ * 音频提醒，以及语音录制、语音识别和自然语言任务解析。
+ *
+ * 主要功能定位：
+ * - 功能：Qt 主界面初始化
+ * - 功能：Qt 添加任务 / Qt 修改任务 / Qt 删除任务
+ * - 功能：开始语音录制 / 停止语音录制 / 语音转文字
+ * - 功能：解析语音任务信息 / 通过语音添加任务
+ */
+
 #include "audio_alert.h"
 
 #include <QAbstractButton>
@@ -281,6 +293,7 @@ bool parsedTaskDataFromJson(const QJsonObject& object,
                             ParsedTaskData& data,
                             QString& message)
 {
+    // 将 DeepSeek 返回的 JSON 字段转为 C++ 语音解析结构，后续交给 TaskDataValidator。
     const QJsonValue titleValue = object.value(QStringLiteral("title"));
     if (!titleValue.isString()) {
         message = QStringLiteral("语音解析字段格式错误：title。");
@@ -361,6 +374,8 @@ bool selectComboDataIfAvailable(QComboBox* combo, const QString& data)
 MainWindow::MainWindow(const std::vector<task>& tasks, QWidget* parent)
     : QMainWindow(parent), current_user_tasks(tasks)
 {
+    // ==================== 功能：Qt 主界面初始化 ====================
+    // 构造函数创建日历筛选区、任务表单、任务列表、反馈区和提醒/语音相关对象。
     resize(1280, 800);
     setMinimumSize(1080, 720);
     setWindowTitle(QStringLiteral("我的日程 — 日程管理器"));
@@ -726,6 +741,7 @@ MainWindow::MainWindow(const std::vector<task>& tasks, QWidget* parent)
             qOverload<>(&QWidget::setFocus));
 
     reminderTimer = new QTimer(this);
+    // Qt 主界面使用 QTimer 每 10 秒轮询核心层提醒状态；CLI 使用 Reminder 线程。
     connect(reminderTimer, &QTimer::timeout, this, &MainWindow::checkDueTasks);
     reminderTimer->start(10000);
 
@@ -768,6 +784,7 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::checkDueTasks()
 {
+    // Qt 提醒入口：调用核心层收集到期任务，再弹出对话框并播放共用音频。
     std::vector<task> dueReminders;
     QString message;
     if (!coreAdapter_.collectDueReminders(
@@ -788,6 +805,7 @@ void MainWindow::checkDueTasks()
 #ifdef ENABLE_VOICE_ASSISTANT
 void MainWindow::on_voice_record_button_clicked()
 {
+    // 语音按钮入口：未录音时检查/启动服务并开始录音，录音中再次点击则停止。
     if (voiceTranscriptionActive_ || voiceParsingActive_ || voicePendingStartRecording_) {
         return;
     }
@@ -801,6 +819,7 @@ void MainWindow::on_voice_record_button_clicked()
 
 void MainWindow::ensureVoiceServiceThenStartRecording()
 {
+    // 开始录音前先检查本地 FastAPI 服务；服务不可用时尝试启动 voice_service/app.py。
     voicePendingStartRecording_ = true;
     voiceServiceHealthAttempts_ = 0;
     voice_record_button->setEnabled(false);
@@ -811,6 +830,8 @@ void MainWindow::ensureVoiceServiceThenStartRecording()
 
 void MainWindow::beginVoiceRecording()
 {
+    // ==================== 功能：开始语音录制 ====================
+    // 使用 arecord 录制 16kHz 单声道 WAV，文件保存在系统临时目录。
     cleanupVoiceRecordingFile();
     voiceRecordingPath_ = makeVoiceRecordingPath();
     voiceRecordingStopping_ = false;
@@ -828,6 +849,7 @@ void MainWindow::beginVoiceRecording()
 
 void MainWindow::requestVoiceServiceHealthCheck(bool allowStart)
 {
+    // 请求 /health 确认 Whisper 和 DeepSeek API Key 是否可用。
     QNetworkRequest request(QUrl(QStringLiteral("%1/health").arg(kVoiceServiceBaseUrl)));
     QNetworkReply* reply = voiceNetworkManager->get(request);
     QTimer::singleShot(kVoiceHealthTimeoutMs, reply, [reply]() {
@@ -896,6 +918,7 @@ void MainWindow::handleVoiceServiceHealthReply(QNetworkReply* reply, bool allowS
 
 void MainWindow::startVoiceServiceProcess()
 {
+    // Qt 自动启动本地 Python 语音服务，工作目录指向 voice_service。
     const QString serviceDirectory = voiceServiceDirectory();
     if (serviceDirectory.isEmpty()) {
         failVoiceServiceStartup(QStringLiteral("找不到 voice_service/app.py。"));
@@ -1019,6 +1042,8 @@ void MainWindow::onVoiceRecorderStarted()
 
 void MainWindow::stopVoiceRecording(bool reachedTimeLimit)
 {
+    // ==================== 功能：停止语音录制 ====================
+    // 向 arecord 发送 SIGINT，使其正常收尾并写完整 WAV 文件头。
     if (!voiceRecordingActive_ && voiceRecordingProcess->state() == QProcess::NotRunning) {
         return;
     }
@@ -1042,6 +1067,7 @@ void MainWindow::stopVoiceRecording(bool reachedTimeLimit)
 
 void MainWindow::onVoiceRecorderFinished(int exitCode, int exitStatus)
 {
+    // 录音进程结束后检查 WAV 文件是否可用，可用则进入语音转文字阶段。
     voiceRecordingTimer->stop();
     const bool stoppedBySignal = exitStatus == static_cast<int>(QProcess::CrashExit);
     const bool processOk = exitCode == 0 || stoppedBySignal;
@@ -1085,6 +1111,8 @@ void MainWindow::onVoiceRecorderError()
 
 void MainWindow::requestVoiceTranscription(const QString& audioPath)
 {
+    // ==================== 功能：语音转文字 ====================
+    // 把录制得到的 WAV 作为 multipart/form-data 上传到本地 /stt 接口。
     auto* audioFile = new QFile(audioPath);
     if (!audioFile->open(QIODevice::ReadOnly)) {
         delete audioFile;
@@ -1120,6 +1148,7 @@ void MainWindow::requestVoiceTranscription(const QString& audioPath)
 
 void MainWindow::handleVoiceTranscriptionReply(QNetworkReply* reply)
 {
+    // STT 返回文本后先让用户确认，确认后的文本再进入任务字段解析。
     const int httpStatus =
         reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const QByteArray body = reply->readAll();
@@ -1189,6 +1218,8 @@ void MainWindow::handleVoiceTranscriptionReply(QNetworkReply* reply)
 
 void MainWindow::requestVoiceTaskParsing(const QString& transcript)
 {
+    // ==================== 功能：解析语音任务信息 ====================
+    // 把确认后的自然语言文本、本地时间、时区和默认值发送到 /parse-task。
     QJsonObject payload;
     payload.insert(QStringLiteral("text"), transcript);
     payload.insert(
@@ -1221,6 +1252,7 @@ void MainWindow::requestVoiceTaskParsing(const QString& transcript)
 
 void MainWindow::handleVoiceTaskParseReply(QNetworkReply* reply, const QString& transcript)
 {
+    // DeepSeek 解析结果返回后，先解析 JSON，再尝试填入任务表单。
     const int httpStatus =
         reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const QByteArray body = reply->readAll();
@@ -1260,6 +1292,8 @@ bool MainWindow::fillTaskFormFromParsedVoiceTask(const QJsonObject& object,
                                                  const QString& transcript,
                                                  QString& message)
 {
+    // ==================== 功能：通过语音添加任务 ====================
+    // 语音流程只负责把解析结果填入表单；最终保存仍需用户点击“添加任务”。
     ParsedTaskData parsedData;
     if (!parsedTaskDataFromJson(object, transcript, parsedData, message)) {
         applyPartialVoiceTaskFields(object, transcript);
@@ -1336,6 +1370,7 @@ bool MainWindow::fillTaskFormFromParsedVoiceTask(const QJsonObject& object,
 bool MainWindow::applyPartialVoiceTaskFields(const QJsonObject& object,
                                              const QString& transcript)
 {
+    // 解析不完整时尽量填入已识别字段，缺失字段由用户在表单中手动补全。
     bool filledAnyField = false;
     task_table->clearSelection();
     task_table->setCurrentItem(nullptr);
@@ -1425,6 +1460,8 @@ void MainWindow::cleanupVoiceRecordingFile()
 
 void MainWindow::on_calendar_date_changed()
 {
+    // ==================== 功能：按日期查看任务 ====================
+    // 日历选择变化后，在当前 GUI 缓存中筛选同一天任务并刷新表格。
     filteringByDate_ = true;
     selectedFilterDate_ = calendar->selectedDate();
 
@@ -1440,12 +1477,15 @@ void MainWindow::on_calendar_date_changed()
 
 void MainWindow::showAllTasks()
 {
+    // ==================== 功能：查看全部任务 ====================
     filteringByDate_ = false;
     refresh_task_table();
 }
 
 void MainWindow::on_add_task_button_clicked()
 {
+    // ==================== 功能：Qt 添加任务 ====================
+    // 步骤 1：读取表单控件，构造 GUI task；若表单来自语音解析，也走同一保存入口。
     const QString name = Task_input->text().trimmed();
     if (name.isEmpty()) {
         showFeedback(QStringLiteral("请先输入任务名称。"), "error");
@@ -1466,6 +1506,7 @@ void MainWindow::on_add_task_button_clicked()
 
     QString message;
     const QString username = QString::fromStdString(current_user_name);
+    // 步骤 2：通过 CoreAdapter 转换为核心 Task，并调用 TaskManager::addTask 保存。
     if (!coreAdapter_.addTask(username, newTask, message)) {
         showFeedback(QStringLiteral("添加失败：%1").arg(message), "error");
         return;
@@ -1475,6 +1516,7 @@ void MainWindow::on_add_task_button_clicked()
         return;
     }
 
+    // 步骤 3：重新加载保存后的任务列表，再刷新当前筛选视图。
     resetTaskForm();
     refresh_task_table();
     showFeedback(QStringLiteral("任务“%1”已添加。").arg(name), "success");
@@ -1483,6 +1525,7 @@ void MainWindow::on_add_task_button_clicked()
 
 void MainWindow::refresh_task_table()
 {
+    // 全部任务视图刷新；如果当前处于日期筛选，则保持该筛选条件。
     if (filteringByDate_) {
         std::vector<task> tasksOfDay;
         for (const auto& currentTask : current_user_tasks) {
@@ -1515,6 +1558,7 @@ void MainWindow::refresh_task_table(const std::vector<task>& tasks)
 
 void MainWindow::populateTaskTable(const std::vector<task>& tasks)
 {
+    // 将 GUI task 列表填入 QTableWidget，并把真实 task_id 存在第 0 列 UserRole。
     task_table->setUpdatesEnabled(false);
     task_table->clearContents();
     task_table->setRowCount(static_cast<int>(tasks.size()));
@@ -1566,6 +1610,8 @@ void MainWindow::populateTaskTable(const std::vector<task>& tasks)
 
 void MainWindow::on_delete_task_button_clicked()
 {
+    // ==================== 功能：Qt 删除任务 ====================
+    // 步骤 1：从表格当前行取出真实 task_id，确认后交给核心层删除。
     const int taskId = selectedTaskId();
     if (taskId <= 0) {
         showFeedback(QStringLiteral("请先选择要删除的任务。"), "error");
@@ -1590,6 +1636,7 @@ void MainWindow::on_delete_task_button_clicked()
 
     QString message;
     const QString username = QString::fromStdString(current_user_name);
+    // 步骤 2：删除成功后重新加载任务并刷新界面。
     if (!coreAdapter_.deleteTask(username, taskId, message)) {
         showFeedback(QStringLiteral("删除失败：%1").arg(message), "error");
         return;
@@ -1606,6 +1653,8 @@ void MainWindow::on_delete_task_button_clicked()
 
 void MainWindow::on_edit_button_clicked()
 {
+    // ==================== 功能：Qt 修改任务 ====================
+    // 步骤 1：读取当前选中任务 ID 和表单字段，构造修改后的 GUI task。
     const int taskId = selectedTaskId();
     if (taskId <= 0) {
         showFeedback(QStringLiteral("请先选择要修改的任务。"), "error");
@@ -1631,6 +1680,7 @@ void MainWindow::on_edit_button_clicked()
 
     QString message;
     const QString username = QString::fromStdString(current_user_name);
+    // 步骤 2：通过适配层调用核心层修改；核心层负责唯一性检查和保存。
     if (!coreAdapter_.updateTask(username, taskId, updatedTask, message)) {
         showFeedback(QStringLiteral("保存失败：%1").arg(message), "error");
         return;
@@ -1647,6 +1697,7 @@ void MainWindow::on_edit_button_clicked()
 
 void MainWindow::on_task_table_cellClicked(int row, int column)
 {
+    // 选中表格行后，把该任务填回左侧表单，供用户修改或删除。
     Q_UNUSED(column);
     if (row < 0) {
         return;
@@ -1769,6 +1820,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 bool MainWindow::reloadTasksFromCore(QString& message)
 {
+    // 所有 Qt 增删改成功后都从核心层重新加载，避免界面缓存与文件状态不一致。
     return coreAdapter_.loadTasks(
         QString::fromStdString(current_user_name), current_user_tasks, message);
 }

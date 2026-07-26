@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 project(ScheduleManagerGUI)
 
+# 文件职责：
+# Qt GUI 构建脚本。这里编译 Frontend 自有界面代码、core_adapter，
+# 并直接复用 ../src/core 下的核心层源文件。
+
 option(ENABLE_VOICE_ASSISTANT "Enable voice task assistant" ON)
 
 # 设置C++标准
@@ -54,6 +58,7 @@ set(HEADERS
 )
 
 if(ENABLE_VOICE_ASSISTANT)
+    # 开启语音功能时额外编译 Qt Network 支持和 src/voice 下的解析结果校验代码。
     list(APPEND SOURCES
         ../src/voice/task_data_validator.cpp
         ../src/voice/voice_result.cpp

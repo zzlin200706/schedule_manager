@@ -1,14 +1,22 @@
 #ifndef REGISTER_WINDOW_H
 #define REGISTER_WINDOW_H
 
+/*
+ * 文件职责：
+ * 声明 Qt 注册对话框。对话框校验两次密码输入，并通过 CoreAdapter
+ * 调用核心层创建用户。
+ */
 
 #include <QDialog>
 #include <QString>
 
 #include "core_adapter.h"
 
-//注册窗口
-
+/**
+ * @brief Qt 注册界面
+ *
+ * 注册成功后保存新用户名，并以 Accepted 结果返回登录窗口。
+ */
 class Register_Window : public QDialog
 {
     Q_OBJECT

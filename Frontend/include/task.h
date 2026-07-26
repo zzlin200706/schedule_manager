@@ -1,5 +1,12 @@
 #ifndef TASK_H
 #define TASK_H
+
+/*
+ * 文件职责：
+ * 定义 Qt GUI 使用的任务展示模型。该模型保存 time_t 时间戳，
+ * 方便 QDateTime/QTableWidget 展示；核心层标准任务模型定义在 src/core/task.h。
+ */
+
 #include<iostream>
 #include<fstream>
 #include<string>
@@ -12,10 +19,12 @@
 #include <QJsonObject>
 using namespace std;
 
-//task类定义
-// 任务类用于存储和管理任务信息
-// 包含任务名称、分类、优先级、截止时间、提醒状态和任务ID等属性
-
+/**
+ * @brief Qt GUI 任务模型
+ *
+ * 用于主界面表格、表单和适配层转换。业务规则不在本类中判断，
+ * 新增/修改时会通过 CoreAdapter 转换到核心层 Task 再校验。
+ */
 class task{
 private:
     string task_name;
@@ -70,7 +79,7 @@ public:
     void show() const;
     ~task(){}
 
-    // 与task与json文件的互转
+    // 与 QJsonObject 互转，主要供 CoreAdapter 在 GUI task 和核心 Task 之间搬运字段。
     friend inline task task_from_json(const QJsonObject& obj);
     friend inline QJsonObject task_to_json(const task& t);
 };

@@ -1,5 +1,16 @@
 #include "storage.h"
 
+/*
+ * 文件职责：
+ * 实现用户账号文件和任务数据文件的加载与保存。用户信息保存在
+ * users.txt，任务保存在 tasks_<username>.txt。
+ *
+ * 主要功能定位：
+ * - 功能：加载用户任务
+ * - 功能：保存用户任务
+ * - 用户账号文件读写由 UserManager 间接调用
+ */
+
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -23,6 +34,7 @@ bool hasProjectMarkers(const fs::path& candidate) {
 }
 
 fs::path findProjectRootFrom(const fs::path& start) {
+    // 从可执行文件目录或当前工作目录向上查找，兼容 CLI/Qt 从不同目录启动。
     fs::path current = start;
     for (int depth = 0; depth < 8; ++depth) {
         if (hasProjectMarkers(current)) {
@@ -105,6 +117,7 @@ bool isHex64(const std::string& value) {
 bool writeTextFileAtomically(const fs::path& path,
                              const std::string& contents,
                              std::string& errorMessage) {
+    // 先写 .tmp 再 rename，避免写入中断时破坏原任务/用户文件。
     fs::path temporaryPath = path;
     temporaryPath += ".tmp";
 
@@ -213,6 +226,7 @@ std::map<std::string, UserRecord> Storage::loadUsers(std::string& errorMessage) 
         std::string username;
         std::string salt;
         std::string hash;
+        // users.txt 每行格式：username:salt:passwordHash。
         if (!std::getline(stream, username, ':') ||
             !std::getline(stream, salt, ':') ||
             !std::getline(stream, hash) ||
@@ -240,6 +254,7 @@ bool Storage::saveUsers(const std::map<std::string, UserRecord>& users, std::str
     return writeTextFileAtomically(usersPath(), contents.str(), errorMessage);
 }
 
+// ==================== 功能：加载用户任务 ====================
 TaskFileData Storage::loadTasks(const std::string& username, std::string& errorMessage) {
     TaskFileData data;
     if (!ensureDataDir(errorMessage)) {
@@ -249,6 +264,7 @@ TaskFileData Storage::loadTasks(const std::string& username, std::string& errorM
     const std::string path = tasksPath(username);
     std::ifstream input(path);
     if (!input.is_open()) {
+        // 首次登录该用户时创建空任务文件，并写入表头与 next_id 元数据。
         const std::string initialContents =
             std::string(kTaskHeader) + "\n" + kNextIdPrefix + "1\n";
         if (!writeTextFileAtomically(path, initialContents, errorMessage)) {
@@ -267,6 +283,7 @@ TaskFileData Storage::loadTasks(const std::string& username, std::string& errorM
             continue;
         }
         if (line.rfind(kNextIdPrefix, 0) == 0) {
+            // next_id 用于恢复下一次新增任务的唯一 ID。
             int parsedNextId = 0;
             if (foundNextId ||
                 !parsePositiveInteger(line.substr(std::char_traits<char>::length(kNextIdPrefix)),
@@ -279,6 +296,7 @@ TaskFileData Storage::loadTasks(const std::string& username, std::string& errorM
             continue;
         }
         std::string parseError;
+        // 普通任务行交给 task.cpp 解析，保持字段校验逻辑集中。
         const auto parsed = deserializeTask(line, parseError);
         if (!parsed.has_value()) {
             errorMessage = parseError;
@@ -293,6 +311,7 @@ TaskFileData Storage::loadTasks(const std::string& username, std::string& errorM
     return data;
 }
 
+// ==================== 功能：保存用户任务 ====================
 bool Storage::saveTasks(const std::string& username,
                         const std::vector<Task>& tasks,
                         int nextId,
@@ -306,6 +325,7 @@ bool Storage::saveTasks(const std::string& username,
     }
 
     std::ostringstream contents;
+    // 任务文件格式：表头 + next_id 元数据 + 多行序列化任务记录。
     contents << kTaskHeader << '\n';
     contents << kNextIdPrefix << nextId << '\n';
     for (const auto& task : tasks) {

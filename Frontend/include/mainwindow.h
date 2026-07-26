@@ -1,6 +1,17 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+/*
+ * 文件职责：
+ * 声明 Qt 主界面。主界面负责任务表单、任务列表、日期筛选、提醒轮询、
+ * 以及可选的语音添加任务流程。
+ *
+ * 主要功能定位：
+ * - 功能：Qt 主界面初始化
+ * - 功能：Qt 添加任务 / Qt 修改任务 / Qt 删除任务
+ * - 功能：开始语音录制 / 停止语音录制 / 语音转文字 / 解析语音任务信息
+ */
+
 #include <QDate>
 #include <QMainWindow>
 
@@ -27,6 +38,12 @@ class QStackedWidget;
 class QTableWidget;
 class QTimer;
 
+/**
+ * @brief Qt 主窗口
+ *
+ * 界面层负责收集控件输入和刷新表格；任务保存、唯一性检查和提醒状态更新
+ * 通过 CoreAdapter 转发给核心层完成。
+ */
 class MainWindow : public QMainWindow
 {
     Q_OBJECT

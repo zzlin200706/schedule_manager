@@ -1,5 +1,11 @@
 #include "task.h"
 
+/*
+ * 文件职责：
+ * 实现核心任务字段校验，以及任务在内存结构和文本文件记录之间的转换。
+ * Storage 加载/保存任务时会调用本文件的 deserializeTask/serializeTask。
+ */
+
 #include "time_utils.h"
 
 #include <sstream>
@@ -44,6 +50,7 @@ bool isValidCategory(const std::string& category) {
 }
 
 bool validateTaskFields(const Task& task, std::string& errorMessage) {
+    // 统一校验任务字段，避免 CLI、Qt 和文件加载各自实现不同规则。
     if (task.id < 0) {
         errorMessage = "Error: task id must be a non-negative integer.";
         return false;
@@ -85,6 +92,7 @@ bool validateTaskFields(const Task& task, std::string& errorMessage) {
 }
 
 std::string serializeTask(const Task& task) {
+    // 与 storage.cpp 中的表头保持一致：id|name|start_time|priority|category|remind_time|reminded。
     std::ostringstream output;
     output << task.id << '|'
            << task.name << '|'
@@ -97,6 +105,7 @@ std::string serializeTask(const Task& task) {
 }
 
 std::optional<Task> deserializeTask(const std::string& line, std::string& errorMessage) {
+    // 从任务文件的一行文本拆出 7 个字段，再复用 validateTaskFields 做业务校验。
     std::vector<std::string> parts;
     std::stringstream stream(line);
     std::string part;

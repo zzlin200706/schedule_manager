@@ -1,5 +1,17 @@
 #include "time_utils.h"
 
+/*
+ * 文件职责：
+ * 实现统一的时间格式校验、任务排序比较、按日期/月筛选辅助函数，
+ * 以及交互式 CLI 的命令行分词。
+ *
+ * 主要功能定位：
+ * - 功能：任务排序
+ * - 功能：按日期查看任务
+ * - 功能：按月份查看任务
+ * - CLI 引号/转义解析由 tokenizeCommandLine 处理
+ */
+
 #include <algorithm>
 #include <cctype>
 #include <iomanip>
@@ -26,6 +38,7 @@ bool parseWithFormat(const std::string& value, const char* format, std::tm& pars
 
     std::ostringstream output;
     output << std::put_time(&normalized, format);
+    // mktime 会自动归一化非法日期，这里反向格式化确认输入没有被“纠正”。
     if (output.str() != value) {
         return false;
     }
@@ -80,10 +93,12 @@ int compareDateTimes(const std::string& left, const std::string& right) {
 }
 
 bool sameDay(const std::string& dateTime, const std::string& day) {
+    // 核心层存储格式固定为 YYYY-MM-DD HH:MM，因此日期筛选可直接比较前 10 位。
     return dateTime.size() >= 10U && dateTime.substr(0, 10) == day;
 }
 
 bool sameMonth(const std::string& dateTime, const std::string& month) {
+    // 月份筛选比较 YYYY-MM 前缀，调用方先保证 month 格式有效。
     return dateTime.size() >= 7U && dateTime.substr(0, 7) == month;
 }
 
@@ -104,6 +119,7 @@ std::string trim(const std::string& value) {
 bool tokenizeCommandLine(const std::string& line,
                          std::vector<std::string>& tokens,
                          std::string& errorMessage) {
+    // 支持单引号、双引号和反斜杠转义，让交互式 CLI 可输入带空格的任务名。
     tokens.clear();
     std::string token;
     char quote = '\0';

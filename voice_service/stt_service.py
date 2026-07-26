@@ -1,5 +1,12 @@
 """Speech-to-text service backed by local faster-whisper."""
 
+# 文件职责：
+# 本文件封装 faster-whisper 语音识别。它校验 Qt 上传的 WAV 文件，
+# 写入临时文件，调用本地 Whisper 模型转写，并返回文本、语言和耗时。
+#
+# 主要功能定位：
+# - 功能：语音转文字
+
 from __future__ import annotations
 
 import tempfile
@@ -36,6 +43,7 @@ class SttResult:
     duration_ms: int
 
 
+# 本地 STT 服务封装，负责模型加载、音频校验和转写流程。
 class SttService:
     def __init__(self, settings: Settings, load_model: bool = True) -> None:
         self._settings = settings
@@ -54,6 +62,8 @@ class SttService:
         return self._load_error
 
     async def transcribe(self, audio: Any) -> SttResult:
+        # ==================== 功能：语音转文字 ====================
+        # 步骤 1：确认模型可用，并校验上传音频格式和大小。
         if not self._whisper_loaded or self._model is None:
             raise VoiceServiceError(
                 503,
@@ -65,6 +75,7 @@ class SttService:
         temp_path = self._write_temp_wav(contents)
         start_time = time.monotonic()
         try:
+            # 步骤 2：faster-whisper 只接收文件路径，因此先写临时 WAV 再转写。
             segments, info = self._model.transcribe(
                 str(temp_path),
                 language=self._settings.whisper_language,
@@ -81,6 +92,7 @@ class SttService:
                 f"Whisper speech recognition failed: {error}",
             ) from error
         finally:
+            # 步骤 3：无论识别成功或失败，都清理临时录音文件。
             temp_path.unlink(missing_ok=True)
 
         if not text:
@@ -103,6 +115,7 @@ class SttService:
         )
 
     def _load_model(self) -> None:
+        # 服务启动时加载 Whisper 模型；失败时记录错误，让 /health 返回不可用状态。
         try:
             from faster_whisper import WhisperModel
         except ImportError as error:
@@ -128,6 +141,7 @@ class SttService:
         self._whisper_loaded = True
 
     async def _validate_audio_upload(self, audio: Any) -> bytes:
+        # 只接受 WAV，并限制上传大小，避免把非录音文件交给 STT 模型。
         filename = (audio.filename or "").lower()
         if not filename.endswith(".wav"):
             raise VoiceServiceError(
@@ -160,6 +174,7 @@ class SttService:
         return contents
 
     def _write_temp_wav(self, contents: bytes) -> Path:
+        # 生成临时 WAV 文件路径，供 faster-whisper 读取。
         handle = tempfile.NamedTemporaryFile(
             prefix="myschedule_voice_stt_",
             suffix=".wav",

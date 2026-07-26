@@ -1,5 +1,10 @@
 #include "voice_result.h"
 
+/*
+ * 文件职责：
+ * 实现语音功能通用结果构造和错误码名称转换。
+ */
+
 #include <utility>
 
 VoiceResult makeVoiceSuccess(std::string message) {
