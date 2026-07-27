@@ -7,7 +7,7 @@ CLI    -> core -> data/
 Qt GUI -> CoreAdapter -> core -> data/
 ```
 
-顶层 CMake 工程构建 CLI 和 Core；`Frontend/` 是独立 Qt 工程。GUI 通过 `CoreAdapter` 复用 `src/core/` 中的账号、任务、存储、提醒和音频逻辑，因此 CLI 与 Qt 使用同一套数据规则。架构和语音流程见 [docs/design.md](docs/design.md)，开发阶段记录见 [docs/roadmap.md](docs/roadmap.md)，课程心得见 [docs/reflection.md](docs/reflection.md)。
+顶层 CMake 工程构建 CLI 和 Core；`Frontend/` 是独立 Qt 工程。GUI 通过 `CoreAdapter` 复用 `src/core/` 中的账号、任务、存储、提醒和音频逻辑，因此 CLI 与 Qt 使用同一套数据规则。架构和语音流程见 [docs/design.md](docs/design.md)，开发阶段记录见 [docs/roadmap.md](docs/roadmap.md)，课程心得见 [docs/reflection.md](docs/reflection.md)，提交资料自查见 [docs/submission_checklist.md](docs/submission_checklist.md)。
 
 ## 已实现功能
 
@@ -37,7 +37,7 @@ CLI 和 Qt 共用 `src/core/audio_alert.*` 播放提醒音频，固定使用仓�
 以下列出 Git 跟踪的主要结构，构建产物和本地运行数据由 `.gitignore` 管理：
 
 ```text
-schedule_manager_new/
+schedule_manager/
 ├── CMakeLists.txt
 ├── README.md
 ├── .gitignore
@@ -46,6 +46,7 @@ schedule_manager_new/
 ├── docs/
 │   ├── design.md
 │   ├── reflection.md
+│   ├── submission_checklist.md
 │   └── roadmap.md
 ├── resources/
 │   └── alarm.mp3
@@ -53,6 +54,8 @@ schedule_manager_new/
 │   ├── cli/
 │   ├── core/
 │   └── voice/
+├── tests/
+│   └── cli_crud_test.sh
 ├── Frontend/
 │   ├── CMakeLists.txt
 │   ├── include/
@@ -72,6 +75,7 @@ schedule_manager_new/
 - `src/core/`：账号、任务、存储、时间解析、提醒线程和 CLI/Qt 共用的音频播放；
 - `src/cli/`：CLI 入口、交互流程和参数解析；
 - `src/voice/`：Qt 语音解析结果的数据结构、错误类型和任务字段校验；
+- `tests/`：命令行增删查改测试脚本；
 - `Frontend/`：Qt GUI、`CoreAdapter`、样式和资源；
 - `voice_service/`：本地 FastAPI 服务边界，承载 Whisper STT 和 DeepSeek 任务字段解析；
 - `data/`：默认运行时数据目录；Git 只跟踪 `.gitkeep`。
@@ -185,6 +189,22 @@ Qt 语音按钮在首次使用时会检查 `127.0.0.1:8765/health`。服务运�
 ```
 
 CLI 的 `run` 交互模式会启动提醒线程，直接命令聚焦单次增删改查。提醒线程约每 10 秒检查一次；程序运行期间，到期任务会输出文本提示、异步播放一次提醒音频，并将 `reminded` 写入任务文件，避免下次加载后重复提醒。
+
+## 测试
+
+构建 CLI 后运行测试脚本：
+
+```bash
+bash tests/cli_crud_test.sh
+```
+
+脚本默认调用 `build/myschedule`，也可以显式传入可执行程序路径：
+
+```bash
+bash tests/cli_crud_test.sh ./build/myschedule
+```
+
+测试会使用临时 `MYSCHEDULE_DATA_DIR`，先创建测试账号，再通过直接命令依次验证添加任务、全部查询、按日查询、按月查询、修改任务和删除任务，不会污染仓库的 `data/`。
 
 ## Qt GUI 使用
 
