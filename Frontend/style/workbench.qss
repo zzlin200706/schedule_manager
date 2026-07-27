@@ -4,6 +4,7 @@
  */
 
 QWidget {
+    /* 全局默认文字：所有控件继承深色文字、中文字体、13px 常规字重。 */
     color: #1C1C1E;
     font-family: "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "WenQuanYi Micro Hei", sans-serif;
     font-size: 13px;
@@ -42,28 +43,33 @@ QScrollArea#leftScroll QWidget#qt_scrollarea_viewport {
 }
 
 QLabel {
+    /* 所有 QLabel 的基础样式：透明背景、无边框，具体颜色和字号由 objectName 覆盖。 */
     background-color: transparent;
     border: none;
 }
 
 QLabel#authCalendarIcon {
+    /* 登录/注册卡片顶部日历图标 label：只固定图标显示高度为 64px。 */
     min-height: 64px;
     max-height: 64px;
 }
 
 QLabel#authTitleLabel {
+    /* 登录/注册窗口主标题，例如“我的日程”“创建日程账号”：深色、30px、粗体。 */
     color: #1C1C1E;
     font-size: 30px;
     font-weight: 700;
 }
 
 QLabel#pageTitleLabel {
+    /* 主窗口顶部页面标题“我的日程”：深色、22px、粗体。 */
     color: #1C1C1E;
     font-size: 22px;
     font-weight: 700;
 }
 
 QLabel#sectionTitleLabel {
+    /* 卡片区块标题，例如“按日期查看”“安排任务”“任务清单”：深色、16px、半粗。 */
     color: #1C1C1E;
     font-size: 16px;
     font-weight: 600;
@@ -71,6 +77,7 @@ QLabel#sectionTitleLabel {
 
 QLabel#fieldLabel,
 QLabel#userNameLabel {
+    /* 表单字段名和当前用户名，例如“任务名称”“开始时间”“当前用户后的用户名”：深色、14px、半粗。 */
     color: #1C1C1E;
     font-size: 14px;
     font-weight: 600;
@@ -81,6 +88,7 @@ QLabel#helperLabel,
 QLabel#utilityLabel,
 QLabel#countLabel,
 QLabel#reminderUnitLabel {
+    /* 次级说明文字、辅助提示、计数和提醒单位文字：灰色、常规字重。 */
     color: #6E6E73;
     font-weight: 400;
 }
@@ -89,11 +97,13 @@ QLabel#helperLabel,
 QLabel#utilityLabel,
 QLabel#countLabel,
 QLabel#reminderUnitLabel {
+    /* 辅助类小字，例如表单提示、当前用户说明、任务数量、天/小时/分钟单位：12px。 */
     font-size: 12px;
 }
 
 QLabel#formErrorLabel,
 QLabel#loginErrorLabel {
+    /* 注册/登录表单错误提示 label：红色文字、浅红背景、红色边框。 */
     color: #C92A24;
     background-color: #FFF0EF;
     border: 1px solid #FFD0CC;
@@ -102,6 +112,7 @@ QLabel#loginErrorLabel {
 }
 
 QLabel#feedbackLabel {
+    /* 主窗口反馈提示 label 默认状态：蓝色文字、浅蓝背景、蓝色边框。 */
     color: #0062CC;
     background-color: #F5F9FF;
     border: 1px solid #D7E8FF;
@@ -110,12 +121,14 @@ QLabel#feedbackLabel {
 }
 
 QLabel#feedbackLabel[kind="success"] {
+    /* showFeedback(..., "success") 对应成功提示：绿色文字、浅绿背景、绿色边框。 */
     color: #218C45;
     background-color: #EAF8EF;
     border-color: #CBEFD8;
 }
 
 QLabel#feedbackLabel[kind="error"] {
+    /* showFeedback(..., "error") 对应失败提示：红色文字、浅红背景、红色边框。 */
     color: #C92A24;
     background-color: #FFF0EF;
     border-color: #FFD0CC;
@@ -143,6 +156,7 @@ QWidget#reminderContent {
 }
 
 QLabel#reminderLabel {
+    /* 提醒弹窗左上角“日程提醒”标签：蓝色胶囊，12px 粗体。 */
     color: #0062CC;
     background-color: #F5F9FF;
     border: 1px solid #D7E8FF;
@@ -153,6 +167,7 @@ QLabel#reminderLabel {
 }
 
 QLabel#reminderSoundBadge {
+    /* 提醒弹窗右上角“提醒已触发”标签：棕橙色胶囊，12px 粗体。 */
     color: #9B3A16;
     background-color: #FFF2EA;
     border: 1px solid #FFD7C2;
@@ -163,12 +178,14 @@ QLabel#reminderSoundBadge {
 }
 
 QLabel#reminderTitle {
+    /* 提醒弹窗任务标题，例如“某任务即将开始”：深色、20px、粗体。 */
     color: #1C1C1E;
     font-size: 20px;
     font-weight: 700;
 }
 
 QLabel#reminderStartTime {
+    /* 提醒弹窗开始时间 label：深蓝文字、浅蓝背景、22px 粗体。 */
     color: #0B3D91;
     background-color: #F2F7FF;
     border: 1px solid #D7E8FF;
@@ -179,6 +196,7 @@ QLabel#reminderStartTime {
 }
 
 QLabel#reminderMetaBadge {
+    /* 提醒弹窗分类/优先级小标签：深灰文字、浅灰背景、12px 半粗。 */
     color: #3A3A3C;
     background-color: #F2F2F7;
     border: 1px solid #E5E5EA;
@@ -189,6 +207,7 @@ QLabel#reminderMetaBadge {
 }
 
 QLabel#filterPill {
+    /* 任务表头右侧筛选状态，例如“全部任务”“7月27日”：蓝色胶囊，12px 半粗。 */
     color: #0062CC;
     background-color: #F5F9FF;
     border: 1px solid #D7E8FF;
@@ -199,6 +218,7 @@ QLabel#filterPill {
 }
 
 QLabel#emptyTitleLabel {
+    /* 空状态标题，例如“还没有任务”“这一天还没有任务”：深色、17px、半粗。 */
     color: #1C1C1E;
     font-size: 17px;
     font-weight: 600;
@@ -421,6 +441,7 @@ QPushButton#dangerButton:disabled {
 }
 
 QTableWidget#taskTable {
+    /* 任务表格正文文字：深色选中态、13px 常规字重，表格内容来自 populateTaskTable。 */
     background-color: #FFFFFF;
     alternate-background-color: #FAFAFC;
     border: 1px solid #E5E5EA;
@@ -449,6 +470,7 @@ QTableWidget#taskTable::item:selected {
 }
 
 QHeaderView::section {
+    /* 表格表头文字，例如“任务名称/分类/优先级/开始时间/提醒时间”：灰色、12px、半粗。 */
     min-height: 38px;
     color: #6E6E73;
     background-color: #F7F7FA;
@@ -474,6 +496,7 @@ QCalendarWidget#scheduleCalendar QWidget {
 }
 
 QCalendarWidget#scheduleCalendar QToolButton {
+    /* 日历顶部月份/年份和左右切换按钮文字：深色、15px、半粗。 */
     min-height: 26px;
     color: #1C1C1E;
     background-color: transparent;
@@ -498,6 +521,7 @@ QCalendarWidget#scheduleCalendar QToolButton#qt_calendar_nextmonth {
 }
 
 QCalendarWidget#scheduleCalendar QTableView {
+    /* 日历日期格子的文字：深色、13px、中等字重；选中日期为蓝底白字。 */
     color: #1C1C1E;
     background-color: #FFFFFF;
     alternate-background-color: #F7F7FA;
@@ -520,6 +544,7 @@ QCalendarWidget#scheduleCalendar QTableView::item:selected {
 }
 
 QCalendarWidget#scheduleCalendar QHeaderView::section {
+    /* 日历星期表头文字：灰色、13px、半粗。 */
     color: #6E6E73;
     background-color: #F7F7FA;
     border: none;
@@ -533,12 +558,14 @@ QSplitter#workspaceSplitter::handle {
 }
 
 QMessageBox QLabel {
+    /* QMessageBox 内部提示文字 label：最小宽度 250px、深色文字。 */
     min-width: 250px;
     color: #1C1C1E;
     background-color: transparent;
 }
 
 QMessageBox#reminderMessageBox QLabel {
+    /* 旧提醒消息框的提示文字宽度兜底：最小宽度 330px。 */
     min-width: 330px;
 }
 
